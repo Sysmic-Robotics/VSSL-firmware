@@ -1,11 +1,12 @@
 #include <Arduino.h> // ESTO SIEMPRE VA PRIMERO
 #include <Encoder.h> // para los encoder uwu
+#include <PID_v1.h> // pid del motor?
 // ==========================================
 //        CONFIGURACIÓN PRINCIPAL
 // ==========================================
 
 // Comenta para usar Bluetooth, Descomenta para WIFI
-#define MODO_BASESTATION 
+// #define MODO_BASESTATION 
 
 // ID de este robot
 #define MI_ROBOT_ID 1 
@@ -15,14 +16,30 @@
 // ==========================================
 #define C1_MI 0
 #define C2_MI 1
-#define C1_MD 2
+#define C1_MD 4
 #define C2_MD 3
 
 // DRV8833
 #define MOT_IN1_PIN 5   
 #define MOT_IN2_PIN 6   
 #define MOT_IN3_PIN 7   
-#define MOT_IN4_PIN 10   
+#define MOT_IN4_PIN 10  
+
+
+Encoder encoderIzq(C1_MI, C2_MI);
+Encoder encoderDer(C1_MD, C2_MD);
+
+double SetpointIzq, InputIzq, OutputIzq;
+double SetpointDer, InputDer, OutputDer;
+
+double kp=7.0, ki=1.0, kd=0.1;
+
+PID PID_Izq(&InputIzq, &OutputIzq, &SetpointIzq, kp, ki, kd, DIRECT);
+PID PID_Der(&InputDer, &OutputDer, &SetpointDer, kp, ki, kd, DIRECT);
+
+long posIzqAnt = 0, posDerAnt = 0;
+unsigned long lastTime = 0;
+
 
 // PWM Settings
 const uint32_t PWM_FREQ = 20000;
@@ -125,16 +142,19 @@ inline int dutyFromNorm(float v, int maxDuty){ v=fabsf(v); v=clampf(v,0,1); retu
 float deadzone(float v, float dz){ float a=fabsf(v); if(a<dz) return 0; float s=(a-dz)/(1.0f-dz); return v>=0?s:-s; }
 float expo(float v, float e){ return (1.0f-e)*v + e*v*fabsf(v); }
 
-void driveOne(float v, uint8_t pinX, uint8_t pinY, int maxDuty){
-  if (v > 0){
-    analogWrite(pinX, dutyFromNorm(v, maxDuty));
-    analogWrite(pinY, 0);
-  } else if (v < 0){
+void driveOne(int pwm, uint8_t pinX, uint8_t pinY, int maxDuty){
+  if (pwm > maxDuty) pwm = maxDuty;
+  if (pwm < -maxDuty) pwm = -maxDuty;
+
+  if(pwm > 0){
+    analogWrite (pinX, abs(pwm));
+    analogWrite(pinY,0);
+  } else if (pwm < 0){
     analogWrite(pinX, 0);
-    analogWrite(pinY, dutyFromNorm(v, maxDuty));
-  } else {
-    analogWrite(pinX, 0);
-    analogWrite(pinY, 0); 
+    analogWrite(pinY,abs(pwm));
+  } else{
+    analogWrite(pinX,0);
+    analogWrite(pinY,0);
   }
 }
 
@@ -169,6 +189,17 @@ void setup() {
   analogWriteFrequency(MOT_IN3_PIN, PWM_FREQ);
   analogWriteFrequency(MOT_IN4_PIN, PWM_FREQ);
 
+  /// CONFIG PID /////
+  PID_Izq.SetMode(AUTOMATIC);
+  PID_Der.SetMode(AUTOMATIC);
+  
+  PID_Izq.SetOutputLimits(-1023,1023);
+  PID_Der.SetOutputLimits(-1023,1023);
+
+  PID_Izq.SetSampleTime(20);
+  PID_Der.SetSampleTime(20);
+  ///////
+  
   #ifdef MODO_BASESTATION
     WiFi.mode(WIFI_STA);
     if(esp_now_init() != ESP_OK){
@@ -193,30 +224,40 @@ void loop() {
   
   // 1. OBTENER DATOS
   #ifdef MODO_BASESTATION
-    delay(10); // Faltaba el punto y coma
+    delay(10);
   #else
     RemoteXY_Handler ();
     Input_X = RemoteXY.Mando_X;
-    Input_Y = RemoteXY.Mando_Y; // Corregido INput -> Input
+    Input_Y = RemoteXY.Mando_Y;
   #endif
 
-  // 2. PROCESAR DATOS (Usamos Input_X e Input_Y, NO RemoteXY directo)
-  // Asi funciona en ambos modos sin error de compilacion
-  
-  float x = clampf(Input_X / 100.0f, -1.0f, 1.0f);
-  float y = clampf(Input_Y / 100.0f, -1.0f, 1.0f);
+if(millis() - lastTime >= 20){
+    long currPosIzq = encoderIzq.read();
+    long currPosDer = encoderDer.read();
 
-  x = deadzone(x, 0.08f);
-  y = deadzone(y, 0.08f);
+    InputIzq = (double)(currPosIzq -posIzqAnt);
+    InputDer = (double)(currPosDer -posDerAnt);
+    posIzqAnt = currPosIzq;
+    posDerAnt = currPosDer;
+    lastTime = millis();
 
-  x = expo(x, 0.25f);
-  y = expo(y, 0.20f);
+    //if (abs(Input_X) < 10 && abs(Input_Y) <10){
+    //  driveOne(0,MOT_IN1_PIN, MOT_IN2_PIN,1023);
+    //  driveOne(0,MOT_IN2_PIN, MOT_IN4_PIN,1023);
+    //
+    //}
+    double targetSpeed = Input_Y * 1;
 
-  float left  = y + x;
-  float right = y - x;
+    SetpointIzq = targetSpeed + (Input_X *0.3);
+    SetpointDer = targetSpeed - (Input_X *0.3);
 
-  float m = fmaxf(fabsf(left), fabsf(right));
-  if (m > 1.0f){ left /= m; right /= m; }
+    PID_Izq.Compute();
+    PID_Der.Compute();
 
-  setWheels(left, right, 1023);
+    driveOne((int)OutputIzq, MOT_IN1_PIN, MOT_IN2_PIN, 1023);
+    driveOne((int)OutputDer, MOT_IN3_PIN, MOT_IN4_PIN, 1023);
+
+    Serial.print("Set: "); Serial.print(SetpointIzq);
+    Serial.print(" Input: "); Serial.println(InputIzq);
+  } 
 }
