@@ -1,6 +1,7 @@
 #include <Arduino.h> // ESTO SIEMPRE VA PRIMERO
 #include <Encoder.h> // para los encoder uwu
 #include <PID_v1.h> // pid del motor?
+
 // ==========================================
 //        CONFIGURACIÓN PRINCIPAL
 // ==========================================
@@ -14,6 +15,7 @@
 // ==========================================
 //               PINES Y MOTORES
 // ==========================================
+
 #define C1_MI 0
 #define C2_MI 1
 #define C1_MD 4
@@ -113,6 +115,7 @@ float Input_Y = 0;
 // ==========================================
 //            BLOQUE 2: REMOTEXY (BT)
 // ==========================================
+
 #else
   #define REMOTEXY_MODE__ESP32CORE_BLE
   #include <BLEDevice.h>
@@ -137,6 +140,7 @@ float Input_Y = 0;
 // ==========================================
 //           FUNCIONES MATEMÁTICAS
 // ==========================================
+
 inline float clampf(float v, float lo, float hi){ return v<lo?lo:(v>hi?hi:v); }
 inline int dutyFromNorm(float v, int maxDuty){ v=fabsf(v); v=clampf(v,0,1); return (int)(v*maxDuty); }
 float deadzone(float v, float dz){ float a=fabsf(v); if(a<dz) return 0; float s=(a-dz)/(1.0f-dz); return v>=0?s:-s; }
@@ -166,8 +170,9 @@ void setWheels(float left, float right, int maxDuty){
 // ==========================================
 //                  SETUP
 // ==========================================
+
 void setup() {
-  Serial.begin(115200); // 921600 es muy rapido, mejor estandar
+  Serial.begin(115200);
    
   pinMode(C1_MD, INPUT);
   pinMode(C2_MD, INPUT);
@@ -220,6 +225,7 @@ void setup() {
 // ==========================================
 //                  LOOP
 // ==========================================
+
 void loop() {
   
   // 1. OBTENER DATOS
@@ -241,11 +247,15 @@ if(millis() - lastTime >= 20){
     posDerAnt = currPosDer;
     lastTime = millis();
 
-    //if (abs(Input_X) < 10 && abs(Input_Y) <10){
+    //if (abs(Input_X) < 10 && abs(Input_Y) <10){    // Esta wea es para una posible zona muerta
     //  driveOne(0,MOT_IN1_PIN, MOT_IN2_PIN,1023);
     //  driveOne(0,MOT_IN2_PIN, MOT_IN4_PIN,1023);
     //
     //}
+
+    // Faltaria agregar un anti windup para el PID porque ahora si se desconecta un motor o alguna wea queda la mea caga por el P
+
+
     double targetSpeed = Input_Y * 1;
 
     SetpointIzq = targetSpeed + (Input_X *0.3);
@@ -257,7 +267,10 @@ if(millis() - lastTime >= 20){
     driveOne((int)OutputIzq, MOT_IN1_PIN, MOT_IN2_PIN, 1023);
     driveOne((int)OutputDer, MOT_IN3_PIN, MOT_IN4_PIN, 1023);
 
-    Serial.print("Set: "); Serial.print(SetpointIzq);
+    Serial.print("Motor izq --> Set: "); Serial.print(SetpointIzq);
     Serial.print(" Input: "); Serial.println(InputIzq);
+    Serial.print("Motor der --> Set: "); Serial.print(SetpointDer);
+    Serial.print(" Input: "); Serial.println(InputDer);
+
   } 
 }
