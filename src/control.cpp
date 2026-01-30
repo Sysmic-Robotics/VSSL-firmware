@@ -6,7 +6,7 @@ Encoder encDer(PIN_ENC_DER_A, PIN_ENC_DER_B);
 double setpointI, inputI, outputI;
 double setpointD, inputD, outputD;
 
-double kp=7.0, ki=1.0, kd=0.1;
+double kp=10.0, ki=0.2, kd=0.1;
 
 PID pidIzq(&inputI, &outputI, &setpointI, kp, ki, kd, DIRECT);
 PID pidDer(&inputD, &outputD, &setpointD, kp, ki, kd, DIRECT);
@@ -36,13 +36,26 @@ void updateControl() {
         lastPIDTime = millis();
 
         // Mezcla cinemática diferencial simple
-        double targetSpeed = g_Input_Y * 1.0;
-        setpointI = targetSpeed + (g_Input_X * 0.3);
-        setpointD = targetSpeed - (g_Input_X * 0.3);
+        double targetSpeed = g_Input_Y * 1.5;
+        setpointI = targetSpeed + (g_Input_X * 1.0);
+        setpointD = targetSpeed - (g_Input_X * 1.0);
 
-        pidIzq.Compute();
-        pidDer.Compute();
-
+        if (setpointI == 0){
+            pidIzq.SetMode(MANUAL);
+            outputI = 0;
+        } else {
+            pidIzq.SetMode(AUTOMATIC);
+            pidIzq.Compute();
+        }
+        
+        if (setpointD == 0){
+            pidDer.SetMode(MANUAL);
+            outputD = 0;
+        } else {
+            pidDer.SetMode(AUTOMATIC);
+            pidDer.Compute();
+        }
+        
         driveMotor((int)outputI, MOT_IN1_PIN, MOT_IN2_PIN);
         driveMotor((int)outputD, MOT_IN3_PIN, MOT_IN4_PIN);
     }
