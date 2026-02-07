@@ -56,7 +56,7 @@ void updateControl() {
             pidDer.Compute();
         }
         
-        driveMotor((int)outputI, MOT_IN1_PIN, MOT_IN2_PIN);
-        driveMotor((int)outputD, MOT_IN3_PIN, MOT_IN4_PIN);
+        driveMotor((int)outputI, MOT_AIN1_PIN, 0);
+        driveMotor((int)outputD, MOT_BIN1_PIN, 0);
     }
 }

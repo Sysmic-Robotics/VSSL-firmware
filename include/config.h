@@ -7,10 +7,10 @@
 //        CONFIGURACIÓN DE MODO
 // ==========================================
 // Descomenta para usar ESP-NOW (WIFI), comenta para RemoteXY (Bluetooth)
-// #define MODO_BASESTATION 
+ #define MODO_BASESTATION 
 
 // ID de este robot (1 al 5)
-#define MI_ROBOT_ID 1 
+#define MI_ROBOT_ID 1
 
 // ==========================================
 //               PINES HARDWARE
@@ -22,11 +22,13 @@
 #define PIN_ENC_DER_A 4
 #define PIN_ENC_DER_B 3
 
-// Driver Motores DRV8833
-#define MOT_IN1_PIN 5   
-#define MOT_IN2_PIN 6   
-#define MOT_IN3_PIN 7   
-#define MOT_IN4_PIN 10  
+// Driver Motores tb6612fng (antes DRV8833)
+#define MOT_AIN1_PIN 5   
+#define MOT_AIN2_PIN 6   
+#define MOT_BIN1_PIN 7   
+#define MOT_BIN2_PIN 10  
+#define MOT_PWM_A_PIN 8   
+#define MOT_PWM_B_PIN 9
 
 // ==========================================
 //           PARÁMETROS DE CONTROL
