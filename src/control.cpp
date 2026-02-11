@@ -1,4 +1,5 @@
 #include "control.h"
+#include "debug.h"
 
 Encoder encIzq(PIN_ENC_IZQ_A, PIN_ENC_IZQ_B);
 Encoder encDer(PIN_ENC_DER_A, PIN_ENC_DER_B);
@@ -58,5 +59,14 @@ void updateControl() {
         
         driveMotor((int)outputI, MOT_IN1_PIN, MOT_IN2_PIN);
         driveMotor((int)outputD, MOT_IN3_PIN, MOT_IN4_PIN);
+
+        // DEBUG 
+        DEBUG_PRINT("TgtL:"); DEBUG_PRINT(setpointI);
+        DEBUG_PRINT(" ActL:"); DEBUG_PRINT(inputI);
+        DEBUG_PRINT(" OutL:"); DEBUG_PRINT(outputI);
+
+        DEBUG_PRINT(" | TgtR:"); DEBUG_PRINT(setpointD);
+        DEBUG_PRINT(" ActR:"); DEBUG_PRINT(inputD);
+        DEBUG_PRINT(" OutR:"); DEBUG_PRINT(outputD);
     }
 }
