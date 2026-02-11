@@ -7,7 +7,7 @@
 //        CONFIGURACIÓN DE MODO
 // ==========================================
 // Descomenta para usar ESP-NOW (WIFI), comenta para RemoteXY (Bluetooth)
-// #define MODO_BASESTATION 
+#define MODO_BASESTATION 
 
 // ID de este robot (1 al 5)
 #define MI_ROBOT_ID 1 
