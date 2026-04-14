@@ -15,7 +15,7 @@ float g_Input_Y = 0;
 
   struct_mensaje_vss incomingData;
 
-  void OnDataRecv(const esp_now_recv_info_t * info, const uint8_t *data, int len) {
+  void OnDataRecv(const uint8_t * mac, const uint8_t *data, int len) {
     // Verificación básica de longitud
     if (len >= 10) {
         int offset = (MI_ROBOT_ID - 1) * 2;

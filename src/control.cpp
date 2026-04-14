@@ -36,7 +36,7 @@ void updateControl() {
         lastPIDTime = millis();
 
         // Mezcla cinemática diferencial simple
-        double targetSpeed = g_Input_Y * 1.5;
+        double targetSpeed = g_Input_Y * 3;
         setpointI = targetSpeed + (g_Input_X * 1.0);
         setpointD = targetSpeed - (g_Input_X * 1.0);
 
