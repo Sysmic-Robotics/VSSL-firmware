@@ -9,20 +9,21 @@
 #include "communication.h"
 #include "motors.h"
 #include "control.h"
+#include "debug.h"
 
 void setup() {
-  Serial.begin(115200);
+  DEBUG_INIT(115200);
   
   // Inicialización de módulos
   initMotors();
   initCommunication();
   initControl();
   
-  Serial.println("--- Sistema Iniciado ---");
+  DEBUG_PRINTLN("Sistema inicializado.");
   #ifdef MODO_BASESTATION
-    Serial.printf("Modo: ESP-NOW | ID: %d\n", MI_ROBOT_ID);
+    DEBUG_PRINTF("Modo: ESP-NOW | ID: %d\n", MI_ROBOT_ID);
   #else
-    Serial.println("Modo: Bluetooth (RemoteXY)");
+    DEBUG_PRINTLN("Modo: Bluetooth (RemoteXY)");
   #endif
 }
 
