@@ -67,6 +67,6 @@ void updateControl() {
 
         DEBUG_PRINT(" | TgtR:"); DEBUG_PRINT(setpointD);
         DEBUG_PRINT(" ActR:"); DEBUG_PRINT(inputD);
-        DEBUG_PRINT(" OutR:"); DEBUG_PRINT(outputD);
+        DEBUG_PRINTLN(" OutR:"); DEBUG_PRINTLN(outputD);
     }
 }

@@ -28,6 +28,10 @@
 #define MOT_IN3_PIN 7   
 #define MOT_IN4_PIN 10  
 
+// MPU
+#define PIN_I2C_SDA 8
+#define PIN_I2C_SCL 9
+
 // ==========================================
 //           PARÁMETROS DE CONTROL
 // ==========================================
@@ -41,5 +45,8 @@ extern double kp, ki, kd;
 // Variables de consigna globales (disponibles para todo el proyecto)
 extern float g_Input_X;
 extern float g_Input_Y;
+
+// Variables del mpu
+extern float g_angulo_Z;
 
 #endif
