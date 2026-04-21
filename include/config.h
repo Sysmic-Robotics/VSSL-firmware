@@ -47,6 +47,6 @@ extern float g_Input_X;
 extern float g_Input_Y;
 
 // Variables del mpu
-extern float g_angulo_Z;
+extern float ax, ay, gy; //valores de aceleración en X e Y
 
 #endif

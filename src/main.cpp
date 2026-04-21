@@ -14,6 +14,7 @@
 
 void setup() {
   DEBUG_INIT(115200);
+  delay(2000); // Espera para estabilizar el monitor serial
   
   // Inicialización de módulos
   initMotors();
