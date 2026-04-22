@@ -42,6 +42,12 @@ const uint32_t PWM_FREQ = 20000;
 const uint8_t  PWM_RES  = 10;     // 10 bits = 0 a 1023
 const int      MAX_PWM  = 1023;
 
+// Geometria robotica para control diferencial
+// r: radio de la rueda
+// L: distancia de la rueda al centro del robot
+const double WHEEL_RADIUS = 1.7; // 3.4 // 2.0
+const double WHEEL_CENTER_DISTANCE = 3.7;  // 7.4//2
+
 // PID Gains
 extern double kp, ki, kd;
 
