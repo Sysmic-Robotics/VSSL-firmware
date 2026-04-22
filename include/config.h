@@ -9,6 +9,9 @@
 // Descomenta para usar ESP-NOW (WIFI), comenta para RemoteXY (Bluetooth)
 #define MODO_BASESTATION 
 
+// Comentar para apagar el control por software (Controlar mediante mando externo)
+#define CONTROL_SOFTWARE 
+
 // ID de este robot (1 al 5)
 #define MI_ROBOT_ID 1 
 

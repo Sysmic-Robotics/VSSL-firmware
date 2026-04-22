@@ -37,9 +37,14 @@ void updateControl() {
         lastPIDTime = millis();
 
         // Mezcla cinemática diferencial simple
-        double targetSpeed = g_Input_Y * 3;
-        setpointI = targetSpeed + (g_Input_X * 1.0);
-        setpointD = targetSpeed - (g_Input_X * 1.0);
+        #ifdef CONTROL_SOFTWARE
+            setpointI = g_Input_X * 3;
+            setpointD = g_Input_Y * 3;
+        #else
+            double targetSpeed = g_Input_Y * 3;
+            setpointI = targetSpeed + (g_Input_X * 1.0);
+            setpointD = targetSpeed - (g_Input_X * 1.0);
+        #endif
 
         if (setpointI == 0){
             pidIzq.SetMode(MANUAL);
