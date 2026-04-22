@@ -1,4 +1,4 @@
-# Firmware para el "Pastilla" (VSSS)
+# Firmware para el "Freddy" (VSSS)
 El firmware está diseñado para un microcontrolador ESP32-C3 Supermini. Este está conectado a una batería de 11.1V mediante un conversor DC-DC que baja el voltaje a 5V para alimentar la lógica. El microcontrolador se encarga de enviarle las señales a un driver de motor DRV8833, el cual controlará cada motor. También está implementado el uso de una MPU (giroscopio/acelerómetro) que por el momento no tiene un objetivo definido en la estrategia.
 
 ## Entorno de Desarrollo (PlatformIO)
