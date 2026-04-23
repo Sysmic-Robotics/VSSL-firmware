@@ -41,23 +41,19 @@ void updateControl() {
             // Entrada desde software: g_Input_X = velocidad lineal, g_Input_Y = velocidad angular
             double linearCmd = g_Input_X * 3.0;
             double angularCmd = g_Input_Y * 1.0;
-            double invRadius = (WHEEL_RADIUS != 0.0) ? (1.0 / WHEEL_RADIUS) : 0.0;
-
-            // w = (1/r) * (v +/- (w*L)/2)
-            setpointI = invRadius * (linearCmd + (angularCmd * WHEEL_CENTER_DISTANCE) * 0.5);
-            setpointD = invRadius * (linearCmd - (angularCmd * WHEEL_CENTER_DISTANCE) * 0.5);
-        #else
-
-            // Entrada desde software: g_Input_X = velocidad lineal, g_Input_Y = velocidad angular
-            double linearCmd = g_Input_X * 3.0;
-            double angularCmd = g_Input_Y * 1.0;
 
 
             // w = (1/r) * (v +/- (w*L)/2)
             setpointI = (1/WHEEL_RADIUS) * (linearCmd + (angularCmd * WHEEL_CENTER_DISTANCE) * 0.5);
             setpointD = (1/WHEEL_RADIUS) * (linearCmd - (angularCmd * WHEEL_CENTER_DISTANCE) * 0.5);
-            //double targetSpeed = g_Input_Y * 3;
-            
+        #else
+
+            // Entrada desde software: g_Input_X = velocidad lineal, g_Input_Y = velocidad angular
+            double linearCmd = g_Input_X * 3.0;
+            double angularCmd = g_Input_Y * 1.0;
+            // w = (1/r) * (v +/- (w*L)/2)
+            setpointI = (1/WHEEL_RADIUS) * (linearCmd + (angularCmd * WHEEL_CENTER_DISTANCE) * 0.5);
+            setpointD = (1/WHEEL_RADIUS) * (linearCmd - (angularCmd * WHEEL_CENTER_DISTANCE) * 0.5);
         #endif
 
         if (setpointI == 0){
