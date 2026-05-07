@@ -1,8 +1,8 @@
 #include "control.h"
 #include "debug.h"
 
-Encoder encIzq(PIN_ENC_IZQ_A, PIN_ENC_IZQ_B);
-Encoder encDer(PIN_ENC_DER_A, PIN_ENC_DER_B);
+Encoder* encIzq;
+Encoder* encDer;
 
 double setpointI, inputI, outputI;
 double setpointD, inputD, outputD;
@@ -16,6 +16,9 @@ long oldPosI = 0, oldPosD = 0;
 unsigned long lastPIDTime = 0;
 
 void initControl() {
+    encIzq = new Encoder(PIN_ENC_IZQ_A, PIN_ENC_IZQ_B);
+    encDer = new Encoder(PIN_ENC_DER_A, PIN_ENC_DER_B);
+
     pidIzq.SetMode(AUTOMATIC);
     pidDer.SetMode(AUTOMATIC);
     pidIzq.SetOutputLimits(-MAX_PWM, MAX_PWM);
@@ -26,8 +29,8 @@ void initControl() {
 
 void updateControl() {
     if (millis() - lastPIDTime >= 20) {
-        long currPosI = encIzq.read();
-        long currPosD = encDer.read();
+        long currPosI = encIzq->read();
+        long currPosD = encDer->read();
 
         inputI = (double)(currPosI - oldPosI);
         inputD = (double)(currPosD - oldPosD);
