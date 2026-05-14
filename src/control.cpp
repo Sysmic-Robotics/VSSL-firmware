@@ -39,15 +39,16 @@ void updateControl() {
         // Mezcla cinemática diferencial simple
         #ifdef CONTROL_SOFTWARE
             // Entrada desde software: g_Input_X = velocidad lineal, g_Input_Y = velocidad angular
-            // double linearCmd = g_Input_X * 3.0;
-            // double angularCmd = g_Input_Y * 1.0;
+            double linearCmd = g_Input_X * 3.0;
+            double angularCmd = g_Input_Y * 1.0;
 
 
             // w = (1/r) * (v +/- (w*L)/2)
-            //setpointI = (1/WHEEL_RADIUS) * (linearCmd + (angularCmd * WHEEL_CENTER_DISTANCE) * 0.5);
-            //setpointD = (1/WHEEL_RADIUS) * (linearCmd - (angularCmd * WHEEL_CENTER_DISTANCE) * 0.5);
-            setpointI = g_Input_X * 3;
-            setpointD = g_Input_Y * 3;
+            setpointI = (1/WHEEL_RADIUS) * (linearCmd + (angularCmd * WHEEL_CENTER_DISTANCE) * 0.5);
+            setpointD = (1/WHEEL_RADIUS) * (linearCmd - (angularCmd * WHEEL_CENTER_DISTANCE) * 0.5);
+            
+            //setpointI = g_Input_X * 3;
+            //setpointD = g_Input_Y * 3;
         #else
 
             // Entrada desde software: g_Input_X = velocidad lineal, g_Input_Y = velocidad angular
@@ -56,6 +57,7 @@ void updateControl() {
             // w = (1/r) * (v +/- (w*L)/2)
             //setpointI = (1/WHEEL_RADIUS) * (linearCmd + (angularCmd * WHEEL_CENTER_DISTANCE) * 0.5);
             //setpointD = (1/WHEEL_RADIUS) * (linearCmd - (angularCmd * WHEEL_CENTER_DISTANCE) * 0.5);
+
             double targetSpeed = g_Input_Y * 3;
             setpointI = targetSpeed + (g_Input_X * 1.0);
             setpointD = targetSpeed - (g_Input_X * 1.0);

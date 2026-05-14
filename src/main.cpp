@@ -38,7 +38,7 @@ void loop() {
   updateControl();
 
   // 3. Actualizar sensores (MPU)
-  // updateMPU();
+  updateMPU();
   
   // 4. Telemetría opcional (usar con cuidado en competencia)
   // Serial.printf("X: %.2f Y: %.2f\n", g_Input_X, g_Input_Y);
