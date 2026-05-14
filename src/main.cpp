@@ -33,14 +33,16 @@ void setup() {
 void loop() {
   // 1. Recibir datos de mando
   updateCommunication();
-  
-  // 2. Procesar PID y mover motores
+
+  // 2. Failsafe: si no hay comunicación, detener inmediatamente
+  if (!isCommunicationConnected()) {
+    stopMotors();
+    return;
+  }
+
+  // 3. Procesar PID y mover motores
   updateControl();
 
-  // 3. Actualizar sensores (MPU)
+  // 4. Sensores opcionales
   // updateMPU();
-  
-  // 4. Telemetría opcional (usar con cuidado en competencia)
-  // Serial.printf("X: %.2f Y: %.2f\n", g_Input_X, g_Input_Y);
-  
 }

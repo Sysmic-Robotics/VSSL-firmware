@@ -6,4 +6,6 @@
 void initCommunication();
 void updateCommunication();
 
+bool isCommunicationConnected();
+
 #endif

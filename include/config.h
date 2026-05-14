@@ -7,7 +7,7 @@
 //        CONFIGURACIÓN DE MODO
 // ==========================================
 // Descomenta para usar ESP-NOW (WIFI), comenta para RemoteXY (Bluetooth)
-// #define MODO_BASESTATION 
+ #define MODO_BASESTATION 
 
 // Comentar para apagar el control por software (Controlar mediante mando externo)
 //#define CONTROL_SOFTWARE 
@@ -57,5 +57,8 @@ extern float g_Input_Y;
 
 // Variables del mpu
 extern float ax, ay, gy; //valores de aceleración en X e Y
+
+// Tiempo máximo sin recibir comando antes de detener el robot
+#define COMM_TIMEOUT_MS 200
 
 #endif
