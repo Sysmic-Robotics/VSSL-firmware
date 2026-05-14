@@ -10,7 +10,7 @@
  #define MODO_BASESTATION 
 
 // Comentar para apagar el control por software (Controlar mediante mando externo)
-//#define CONTROL_SOFTWARE 
+#define CONTROL_SOFTWARE //lo voy a ocupar pa controlar mediante mpu 
 
 // ID de este robot (1 al 5)
 #define MI_ROBOT_ID 1
@@ -20,10 +20,10 @@
 // ==========================================
 
 // Encoders
-#define PIN_ENC_IZQ_A 0
-#define PIN_ENC_IZQ_B 1
-#define PIN_ENC_DER_A 4
-#define PIN_ENC_DER_B 3
+#define PIN_ENC_IZQ_A 1     // en el robotito con switch, el encoder taba dao vuelta. dar vuelta pa los demas en vola????
+#define PIN_ENC_IZQ_B 0
+#define PIN_ENC_DER_A 3
+#define PIN_ENC_DER_B 4
 
 // Driver Motores DRV8833
 #define MOT_IN1_PIN 5   
