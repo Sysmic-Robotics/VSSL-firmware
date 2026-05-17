@@ -31,16 +31,16 @@ void setup() {
 }
 
 void loop() {
-  // 1. Recibir datos de mando
+  // 1. Actualizar comunicación
   updateCommunication();
 
-  // 2. Failsafe: si no hay comunicación, detener inmediatamente
+  // 2. Si no hay comunicación, comandos en cero y motores detenidos
   if (!isCommunicationConnected()) {
+    clearWheelCommands();
     stopMotors();
-    return;
   }
 
-  // 3. Procesar PID y mover motores
+  // 3. Control de motores
   updateControl();
 
   // 4. Sensores opcionales

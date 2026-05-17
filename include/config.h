@@ -48,17 +48,39 @@ const int      MAX_PWM  = 1023;
 const double WHEEL_RADIUS = 1.7; // 3.4 // 2.0
 const double WHEEL_CENTER_DISTANCE = 3.7;  // 7.4//2
 
+// PID cada 20 ms
+#define CONTROL_INTERVAL_MS 20
+#define CONTROL_DT_S (CONTROL_INTERVAL_MS / 1000.0)
+
+// Tiempo máximo sin recibir comandos
+#define COMM_TIMEOUT_MS 200
+
+// Límite de seguridad para comandos recibidos
+#define MAX_WHEEL_TICKS_PER_SEC 8000
+
+// Para pruebas con RemoteXY
+#define JOYSTICK_MAX_TICKS_PER_SEC 4000
+#define JOYSTICK_DEADZONE 5
+
+// Signo de ruedas.
+// Si al mandar left=1000/right=1000 una rueda gira al revés,
+// cambia el signo correspondiente a -1.
+#define LEFT_WHEEL_SIGN  1
+#define RIGHT_WHEEL_SIGN 1
+
 // PID Gains
 extern double kp, ki, kd;
 
 // Variables de consigna globales (disponibles para todo el proyecto)
-extern float g_Input_X;
-extern float g_Input_Y;
+//extern float g_Input_X;
+//extern float g_Input_Y;
+
+// Nuevas consignas globales: velocidades de rueda en ticks/s
+extern volatile int16_t g_Left_TicksPerSec;
+extern volatile int16_t g_Right_TicksPerSec;
 
 // Variables del mpu
 extern float ax, ay, gy; //valores de aceleración en X e Y
 
-// Tiempo máximo sin recibir comando antes de detener el robot
-#define COMM_TIMEOUT_MS 200
 
 #endif

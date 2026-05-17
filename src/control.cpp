@@ -23,8 +23,73 @@ void initControl() {
     pidIzq.SetSampleTime(20);
     pidDer.SetSampleTime(20);
 }
-
 void updateControl() {
+    if (millis() - lastPIDTime >= CONTROL_INTERVAL_MS) {
+
+        long currPosI = encIzq.read();
+        long currPosD = encDer.read();
+
+        inputI = (double)(currPosI - oldPosI);
+        inputD = (double)(currPosD - oldPosD);
+
+        oldPosI = currPosI;
+        oldPosD = currPosD;
+        lastPIDTime = millis();
+
+        // Convertir ticks/s recibidos desde base station
+        // a ticks por ciclo de control.
+        setpointI = LEFT_WHEEL_SIGN *
+                    ((double)g_Left_TicksPerSec * CONTROL_DT_S);
+
+        setpointD = RIGHT_WHEEL_SIGN *
+                    ((double)g_Right_TicksPerSec * CONTROL_DT_S);
+
+        if (setpointI == 0) {
+            pidIzq.SetMode(MANUAL);
+            outputI = 0;
+        } else {
+            pidIzq.SetMode(AUTOMATIC);
+            pidIzq.Compute();
+        }
+
+        if (setpointD == 0) {
+            pidDer.SetMode(MANUAL);
+            outputD = 0;
+        } else {
+            pidDer.SetMode(AUTOMATIC);
+            pidDer.Compute();
+        }
+
+        driveMotor((int)outputI, MOT_IN1_PIN, MOT_IN2_PIN);
+        driveMotor((int)outputD, MOT_IN3_PIN, MOT_IN4_PIN);
+
+        DEBUG_PRINT("CmdL_tps:");
+        DEBUG_PRINT(g_Left_TicksPerSec);
+
+        DEBUG_PRINT(" TgtL:");
+        DEBUG_PRINT(setpointI);
+
+        DEBUG_PRINT(" ActL:");
+        DEBUG_PRINT(inputI);
+
+        DEBUG_PRINT(" OutL:");
+        DEBUG_PRINT(outputI);
+
+        DEBUG_PRINT(" | CmdR_tps:");
+        DEBUG_PRINT(g_Right_TicksPerSec);
+
+        DEBUG_PRINT(" TgtR:");
+        DEBUG_PRINT(setpointD);
+
+        DEBUG_PRINT(" ActR:");
+        DEBUG_PRINT(inputD);
+
+        DEBUG_PRINT(" OutR:");
+        DEBUG_PRINTLN(outputD);
+    }
+}
+
+//void updateControl() {
     if (millis() - lastPIDTime >= 20) {
         long currPosI = encIzq.read();
         long currPosD = encDer.read();
