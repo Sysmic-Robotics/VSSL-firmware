@@ -15,13 +15,44 @@ PID pidDer(&inputD, &outputD, &setpointD, kp, ki, kd, DIRECT);
 long oldPosI = 0, oldPosD = 0;
 unsigned long lastPIDTime = 0;
 
+const int PWM_STATIC = 260;          // PWM base para vencer zona muerta
+const double PWM_PER_MM_S = 0.35;    // cuánto PWM suma por cada mm/s
+const int PID_CORRECTION_LIMIT = 250;
+const int CMD_DEADBAND_MM_S = 20;
+
+double mmpsToTicksPerControlCycle(double velocity_mm_s) {
+    double velocity_m_s = velocity_mm_s / 1000.0;
+    double wheel_circumference = PI * WHEEL_DIAMETER_M;
+
+    double rev_per_sec = velocity_m_s / wheel_circumference;
+    double ticks_per_sec = rev_per_sec * ENCODER_TICKS_PER_WHEEL_REV;
+
+    return ticks_per_sec * CONTROL_DT_S;
+}
+
+int feedForwardPWM(int velocity_mm_s) {
+    if (abs(velocity_mm_s) < CMD_DEADBAND_MM_S) {
+        return 0;
+    }
+
+    int sign = (velocity_mm_s > 0) ? 1 : -1;
+
+    int pwm = PWM_STATIC + (int)(PWM_PER_MM_S * abs(velocity_mm_s));
+    pwm = constrain(pwm, 0, MAX_PWM);
+
+    return sign * pwm;
+}
+
+
 void initControl() {
+    pidIzq.SetOutputLimits(-PID_CORRECTION_LIMIT, PID_CORRECTION_LIMIT);
+    pidDer.SetOutputLimits(-PID_CORRECTION_LIMIT, PID_CORRECTION_LIMIT);
+
+    pidIzq.SetSampleTime(CONTROL_INTERVAL_MS);
+    pidDer.SetSampleTime(CONTROL_INTERVAL_MS);
+
     pidIzq.SetMode(AUTOMATIC);
     pidDer.SetMode(AUTOMATIC);
-    pidIzq.SetOutputLimits(-MAX_PWM, MAX_PWM);
-    pidDer.SetOutputLimits(-MAX_PWM, MAX_PWM);
-    pidIzq.SetSampleTime(20);
-    pidDer.SetSampleTime(20);
 }
 void updateControl() {
     if (millis() - lastPIDTime >= CONTROL_INTERVAL_MS) {
@@ -29,67 +60,90 @@ void updateControl() {
         long currPosI = encIzq.read();
         long currPosD = encDer.read();
 
-        inputI = (double)(currPosI - oldPosI);
-        inputD = (double)(currPosD - oldPosD);
+        inputI = LEFT_ENCODER_SIGN * (double)(currPosI - oldPosI);
+        inputD = RIGHT_ENCODER_SIGN * (double)(currPosD - oldPosD);
 
         oldPosI = currPosI;
         oldPosD = currPosD;
         lastPIDTime = millis();
 
-        // Convertir ticks/s recibidos desde base station
-        // a ticks por ciclo de control.
-        setpointI = LEFT_WHEEL_SIGN *
-                    ((double)g_Left_TicksPerSec * CONTROL_DT_S);
+        int leftCmdMmS  = LEFT_WHEEL_SIGN  * g_Left_MmPerSec;
+        int rightCmdMmS = RIGHT_WHEEL_SIGN * g_Right_MmPerSec;
 
-        setpointD = RIGHT_WHEEL_SIGN *
-                    ((double)g_Right_TicksPerSec * CONTROL_DT_S);
+        setpointI = mmpsToTicksPerControlCycle(leftCmdMmS);
+        setpointD = mmpsToTicksPerControlCycle(rightCmdMmS);
 
-        if (setpointI == 0) {
-            pidIzq.SetMode(MANUAL);
+        if (leftCmdMmS == 0) {
             outputI = 0;
         } else {
-            pidIzq.SetMode(AUTOMATIC);
             pidIzq.Compute();
         }
 
-        if (setpointD == 0) {
-            pidDer.SetMode(MANUAL);
+        if (rightCmdMmS == 0) {
             outputD = 0;
         } else {
-            pidDer.SetMode(AUTOMATIC);
             pidDer.Compute();
         }
 
-        driveMotor((int)outputI, MOT_IN1_PIN, MOT_IN2_PIN);
-        driveMotor((int)outputD, MOT_IN3_PIN, MOT_IN4_PIN);
+        int ffI = feedForwardPWM(leftCmdMmS);
+        int ffD = feedForwardPWM(rightCmdMmS);
 
-        DEBUG_PRINT("CmdL_tps:");
-        DEBUG_PRINT(g_Left_TicksPerSec);
+        int pwmI = ffI + (int)outputI;
+        int pwmD = ffD + (int)outputD;
 
-        DEBUG_PRINT(" TgtL:");
-        DEBUG_PRINT(setpointI);
+        if (leftCmdMmS == 0) pwmI = 0;
+        if (rightCmdMmS == 0) pwmD = 0;
 
-        DEBUG_PRINT(" ActL:");
-        DEBUG_PRINT(inputI);
+        pwmI = constrain(pwmI, -MAX_PWM, MAX_PWM);
+        pwmD = constrain(pwmD, -MAX_PWM, MAX_PWM);
 
-        DEBUG_PRINT(" OutL:");
-        DEBUG_PRINT(outputI);
+        driveMotor(pwmI, MOT_IN1_PIN, MOT_IN2_PIN);
+        driveMotor(pwmD, MOT_IN3_PIN, MOT_IN4_PIN);
 
-        DEBUG_PRINT(" | CmdR_tps:");
-        DEBUG_PRINT(g_Right_TicksPerSec);
+        static unsigned long lastDebug = 0;
+        if (millis() - lastDebug > 500) {
+            Serial.print("CmdL_mm/s:");
+            Serial.print(g_Left_MmPerSec);
 
-        DEBUG_PRINT(" TgtR:");
-        DEBUG_PRINT(setpointD);
+            Serial.print(" CmdR_mm/s:");
+            Serial.print(g_Right_MmPerSec);
 
-        DEBUG_PRINT(" ActR:");
-        DEBUG_PRINT(inputD);
+            Serial.print(" SetL_ticks:");
+            Serial.print(setpointI);
 
-        DEBUG_PRINT(" OutR:");
-        DEBUG_PRINTLN(outputD);
+            Serial.print(" ActL_ticks:");
+            Serial.print(inputI);
+
+            Serial.print(" FF_L:");
+            Serial.print(ffI);
+
+            Serial.print(" PID_L:");
+            Serial.print(outputI);
+
+            Serial.print(" PWM_L:");
+            Serial.print(pwmI);
+
+            Serial.print(" | SetR_ticks:");
+            Serial.print(setpointD);
+
+            Serial.print(" ActR_ticks:");
+            Serial.print(inputD);
+
+            Serial.print(" FF_R:");
+            Serial.print(ffD);
+
+            Serial.print(" PID_R:");
+            Serial.print(outputD);
+
+            Serial.print(" PWM_R:");
+            Serial.println(pwmD);
+
+            lastDebug = millis();
+        }
     }
 }
-
-//void updateControl() {
+/*
+void updateControl() {
     if (millis() - lastPIDTime >= 20) {
         long currPosI = encIzq.read();
         long currPosD = encDer.read();
@@ -165,3 +219,4 @@ void updateControl() {
         DEBUG_PRINTLN(" OutR:"); DEBUG_PRINTLN(outputD);
     }
 }
+    */

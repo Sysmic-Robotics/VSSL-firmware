@@ -13,13 +13,24 @@
 #include "mpu.h"
 
 void setup() {
-  DEBUG_INIT(115200);
-  delay(2000); // Espera para estabilizar el monitor serial
-  
-  // Inicialización de módulos
+  Serial.begin(115200);
+  delay(2000);
+
+  Serial.println();
+  Serial.println("BOOT ROBOT VSSS");
+
   initMotors();
+  Serial.println("Motores inicializados");
+    
+
   initCommunication();
+  Serial.println("Comunicacion inicializada");
+
   initControl();
+  Serial.println("Control inicializado");
+
+  Serial.println("Sistema iniciado");
+
   // initMPU();
   
   DEBUG_PRINTLN("Sistema inicializado.");

@@ -1,12 +1,14 @@
 #include "communication.h"
 #include <string.h>
+#include <esp_wifi.h>
 
+#define ESPNOW_CHANNEL 1
 // ==========================================
 //       VARIABLES GLOBALES DE COMANDO
 // ==========================================
 
-volatile int16_t g_Left_TicksPerSec = 0;
-volatile int16_t g_Right_TicksPerSec = 0;
+volatile int16_t g_Left_MmPerSec = 0;
+volatile int16_t g_Right_MmPerSec = 0;
 
 // Estado de comunicación
 static unsigned long lastCommandTime = 0;
@@ -18,8 +20,8 @@ static bool communicationConnected = false;
 // ==========================================
 
 void clearWheelCommands() {
-    g_Left_TicksPerSec = 0;
-    g_Right_TicksPerSec = 0;
+    g_Left_MmPerSec = 0;
+    g_Right_MmPerSec = 0;
 }
 
 static void markCommandReceived() {
@@ -47,8 +49,8 @@ static int16_t clampWheelCommand(int16_t value) {
 #define NUM_ROBOTS 5
 
 typedef struct __attribute__((packed)) {
-    int16_t left_ticks_per_sec;
-    int16_t right_ticks_per_sec;
+    int16_t left_mm_s;
+    int16_t right_mm_s;
 } RobotWheelCommand;
 
 typedef struct __attribute__((packed)) {
@@ -59,34 +61,45 @@ typedef struct __attribute__((packed)) {
 } CommandPacket;
 
 void OnDataRecv(const uint8_t * mac, const uint8_t *data, int len) {
+    Serial.print("RX ESP-NOW len=");
+    Serial.println(len);
+
     if (len != sizeof(CommandPacket)) {
+        Serial.println("Len incorrecto");
         return;
     }
 
     CommandPacket packet;
     memcpy(&packet, data, sizeof(CommandPacket));
-//Esto sirve para asegurarse de que el paquete recibido realmente pertenece al protocolo.
+
+    Serial.print("Magic=");
+    Serial.println(packet.magic, HEX);
+
+    Serial.print("Version=");
+    Serial.println(packet.version);
+
     if (packet.magic != COMM_MAGIC) {
+        Serial.println("Magic incorrecto");
         return;
     }
-//Esto sirve para asegurarse de que el paquete recibido es compatible con la versión del protocolo que estamos usando.
+
     if (packet.version != COMM_VERSION) {
+        Serial.println("Version incorrecta");
         return;
     }
 
     int idx = MI_ROBOT_ID - 1;
 
-    if (idx < 0 || idx >= NUM_ROBOTS) {
-        clearWheelCommands();
-        return;
-    }
+    g_Left_MmPerSec = packet.robots[idx].left_mm_s;
+    g_Right_MmPerSec = packet.robots[idx].right_mm_s;
 
-    g_Left_TicksPerSec = clampWheelCommand(packet.robots[idx].left_ticks_per_sec);
-    g_Right_TicksPerSec = clampWheelCommand(packet.robots[idx].right_ticks_per_sec);
+    Serial.print("Cmd recibido L=");
+    Serial.print(g_Left_MmPerSec);
+    Serial.print(" R=");
+    Serial.println(g_Right_MmPerSec);
 
     markCommandReceived();
 }
-
 #else
 
 // ==========================================
@@ -130,12 +143,31 @@ void initCommunication() {
     lastCommandTime = 0;
 
 #ifdef MODO_BASESTATION
-    WiFi.mode(WIFI_STA);
+    Serial.println("Modo ESP-NOW receptor activo");
 
-    if (esp_now_init() == ESP_OK) {
-        esp_now_register_recv_cb(OnDataRecv);
+    WiFi.mode(WIFI_STA);
+    WiFi.disconnect();
+
+    esp_wifi_set_promiscuous(true);
+    esp_wifi_set_channel(ESPNOW_CHANNEL, WIFI_SECOND_CHAN_NONE);
+    esp_wifi_set_promiscuous(false);
+
+    Serial.print("MAC robot: ");
+    Serial.println(WiFi.macAddress());
+
+    if (esp_now_init() != ESP_OK) {
+        Serial.println("Error inicializando ESP-NOW en robot");
+        return;
     }
+
+    esp_now_register_recv_cb(OnDataRecv);
+
+    Serial.print("Canal ESP-NOW robot: ");
+    Serial.println(ESPNOW_CHANNEL);
+
+    Serial.println("ESP-NOW robot listo para recibir");
 #else
+    Serial.println("Modo RemoteXY activo");
     RemoteXY_Init();
 #endif
 }

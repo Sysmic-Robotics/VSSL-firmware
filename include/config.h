@@ -10,10 +10,10 @@
  #define MODO_BASESTATION 
 
 // Comentar para apagar el control por software (Controlar mediante mando externo)
-#define CONTROL_SOFTWARE //lo voy a ocupar pa controlar mediante mpu 
+//#define CONTROL_SOFTWARE //lo voy a ocupar pa controlar mediante mpu 
 
 // ID de este robot (1 al 5)
-#define MI_ROBOT_ID 1
+#define MI_ROBOT_ID 2
 
 // ==========================================
 //               PINES HARDWARE
@@ -42,11 +42,22 @@ const uint32_t PWM_FREQ = 20000;
 const uint8_t  PWM_RES  = 10;     // 10 bits = 0 a 1023
 const int      MAX_PWM  = 1023;
 
+// ==========================================
+//        PARÁMETROS FÍSICOS DEL ROBOT
+// ==========================================
+
+// Diámetro real de la rueda
+#define WHEEL_DIAMETER_M 0.034 
+
+// Ticks de encoder por UNA vuelta completa de la rueda.
+// Este valor hay que medirlo experimentalmente.
+#define ENCODER_TICKS_PER_WHEEL_REV 664.8
+
 // Geometria robotica para control diferencial
 // r: radio de la rueda
 // L: distancia de la rueda al centro del robot
-const double WHEEL_RADIUS = 1.7; // 3.4 // 2.0
-const double WHEEL_CENTER_DISTANCE = 3.7;  // 7.4//2
+//const double WHEEL_RADIUS = 1.7; // 3.4 // 2.0
+//const double WHEEL_CENTER_DISTANCE = 3.7;  // 7.4//2
 
 // PID cada 20 ms
 #define CONTROL_INTERVAL_MS 20
@@ -65,8 +76,10 @@ const double WHEEL_CENTER_DISTANCE = 3.7;  // 7.4//2
 // Signo de ruedas.
 // Si al mandar left=1000/right=1000 una rueda gira al revés,
 // cambia el signo correspondiente a -1.
-#define LEFT_WHEEL_SIGN  1
-#define RIGHT_WHEEL_SIGN 1
+#define LEFT_WHEEL_SIGN  -1
+#define RIGHT_WHEEL_SIGN -1
+#define LEFT_ENCODER_SIGN  1
+#define RIGHT_ENCODER_SIGN -1
 
 // PID Gains
 extern double kp, ki, kd;
@@ -75,9 +88,9 @@ extern double kp, ki, kd;
 //extern float g_Input_X;
 //extern float g_Input_Y;
 
-// Nuevas consignas globales: velocidades de rueda en ticks/s
-extern volatile int16_t g_Left_TicksPerSec;
-extern volatile int16_t g_Right_TicksPerSec;
+// Nuevas consignas globales: velocidades de rueda en mm/s
+extern volatile int16_t g_Left_MmPerSec;
+extern volatile int16_t g_Right_MmPerSec;
 
 // Variables del mpu
 extern float ax, ay, gy; //valores de aceleración en X e Y
