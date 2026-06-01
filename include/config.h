@@ -76,8 +76,8 @@ const int      MAX_PWM  = 1023;
 // Signo de ruedas.
 // Si al mandar left=1000/right=1000 una rueda gira al revés,
 // cambia el signo correspondiente a -1.
-#define LEFT_WHEEL_SIGN  -1
-#define RIGHT_WHEEL_SIGN -1
+#define LEFT_WHEEL_SIGN  1
+#define RIGHT_WHEEL_SIGN 1
 #define LEFT_ENCODER_SIGN  -1
 #define RIGHT_ENCODER_SIGN -1
 

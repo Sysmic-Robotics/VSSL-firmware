@@ -7,7 +7,7 @@ Encoder encDer(PIN_ENC_DER_A, PIN_ENC_DER_B);
 double setpointI, inputI, outputI;
 double setpointD, inputD, outputD;
 
-double kp=0.5, ki=0.2, kd=0.1;
+double kp=1, ki=0.10, kd=0.0;
 
 PID pidIzq(&inputI, &outputI, &setpointI, kp, ki, kd, DIRECT);
 PID pidDer(&inputD, &outputD, &setpointD, kp, ki, kd, DIRECT);
