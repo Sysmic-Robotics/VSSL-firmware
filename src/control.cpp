@@ -7,7 +7,7 @@ Encoder encDer(PIN_ENC_DER_A, PIN_ENC_DER_B);
 double setpointI, inputI, outputI;
 double setpointD, inputD, outputD;
 
-double kp=10.0, ki=0.2, kd=0.1;
+double kp=0.5, ki=0.2, kd=0.1;
 
 PID pidIzq(&inputI, &outputI, &setpointI, kp, ki, kd, DIRECT);
 PID pidDer(&inputD, &outputD, &setpointD, kp, ki, kd, DIRECT);
@@ -15,8 +15,8 @@ PID pidDer(&inputD, &outputD, &setpointD, kp, ki, kd, DIRECT);
 long oldPosI = 0, oldPosD = 0;
 unsigned long lastPIDTime = 0;
 
-const int PWM_STATIC = 260;          // PWM base para vencer zona muerta
-const double PWM_PER_MM_S = 0.35;    // cuánto PWM suma por cada mm/s
+const int PWM_STATIC = 150;          // PWM base para vencer zona muerta
+const double PWM_PER_MM_S = 0.15;    // cuánto PWM suma por cada mm/s
 const int PID_CORRECTION_LIMIT = 250;
 const int CMD_DEADBAND_MM_S = 20;
 
@@ -74,14 +74,18 @@ void updateControl() {
         setpointD = mmpsToTicksPerControlCycle(rightCmdMmS);
 
         if (leftCmdMmS == 0) {
+            pidIzq.SetMode(MANUAL);
             outputI = 0;
         } else {
+            if (pidIzq.GetMode() != AUTOMATIC) pidIzq.SetMode(AUTOMATIC);
             pidIzq.Compute();
         }
 
         if (rightCmdMmS == 0) {
+            pidDer.SetMode(MANUAL);
             outputD = 0;
         } else {
+            if (pidDer.GetMode() != AUTOMATIC) pidDer.SetMode(AUTOMATIC);
             pidDer.Compute();
         }
 

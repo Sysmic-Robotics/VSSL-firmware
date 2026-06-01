@@ -7,7 +7,7 @@
 //        CONFIGURACIÓN DE MODO
 // ==========================================
 // Descomenta para usar ESP-NOW (WIFI), comenta para RemoteXY (Bluetooth)
- #define MODO_BASESTATION 
+// #define MODO_BASESTATION 
 
 // Comentar para apagar el control por software (Controlar mediante mando externo)
 //#define CONTROL_SOFTWARE //lo voy a ocupar pa controlar mediante mpu 
@@ -51,7 +51,7 @@ const int      MAX_PWM  = 1023;
 
 // Ticks de encoder por UNA vuelta completa de la rueda.
 // Este valor hay que medirlo experimentalmente.
-#define ENCODER_TICKS_PER_WHEEL_REV 664.8
+#define ENCODER_TICKS_PER_WHEEL_REV 575
 
 // Geometria robotica para control diferencial
 // r: radio de la rueda
@@ -78,7 +78,7 @@ const int      MAX_PWM  = 1023;
 // cambia el signo correspondiente a -1.
 #define LEFT_WHEEL_SIGN  -1
 #define RIGHT_WHEEL_SIGN -1
-#define LEFT_ENCODER_SIGN  1
+#define LEFT_ENCODER_SIGN  -1
 #define RIGHT_ENCODER_SIGN -1
 
 // PID Gains

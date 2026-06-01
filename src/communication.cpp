@@ -213,8 +213,8 @@ void updateCommunication() {
         left = constrain(left, -MAX_WHEEL_TICKS_PER_SEC, MAX_WHEEL_TICKS_PER_SEC);
         right = constrain(right, -MAX_WHEEL_TICKS_PER_SEC, MAX_WHEEL_TICKS_PER_SEC);
 
-        g_Left_TicksPerSec = (int16_t)left;
-        g_Right_TicksPerSec = (int16_t)right;
+        g_Left_MmPerSec = (int16_t)left;
+        g_Right_MmPerSec = (int16_t)right;
 
         markCommandReceived();
 
