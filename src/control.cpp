@@ -15,10 +15,11 @@ PID pidDer(&inputD, &outputD, &setpointD, kp, ki, kd, DIRECT);
 long oldPosI = 0, oldPosD = 0;
 unsigned long lastPIDTime = 0;
 
-const int PWM_STATIC = 150;          // PWM base para vencer zona muerta
-const double PWM_PER_MM_S = 0.15;    // cuánto PWM suma por cada mm/s
+const int PWM_STATIC = 75;          // PWM base para vencer zona muerta
+const double PWM_PER_MM_S = 0.075;    // cuánto PWM suma por cada mm/s
 const int PID_CORRECTION_LIMIT = 250;
 const int CMD_DEADBAND_MM_S = 20;
+const float SPEED_SCALE = 0.5f;  // 0.5 = mitad, 1.0 = completo
 
 double mmpsToTicksPerControlCycle(double velocity_mm_s) {
     double velocity_m_s = velocity_mm_s / 1000.0;
@@ -67,8 +68,8 @@ void updateControl() {
         oldPosD = currPosD;
         lastPIDTime = millis();
 
-        int leftCmdMmS  = LEFT_WHEEL_SIGN  * g_Left_MmPerSec;
-        int rightCmdMmS = RIGHT_WHEEL_SIGN * g_Right_MmPerSec;
+        int leftCmdMmS  = LEFT_WHEEL_SIGN  * (int)(g_Left_MmPerSec * SPEED_SCALE);
+        int rightCmdMmS = RIGHT_WHEEL_SIGN * (int)(g_Right_MmPerSec * SPEED_SCALE);
 
         setpointI = mmpsToTicksPerControlCycle(leftCmdMmS);
         setpointD = mmpsToTicksPerControlCycle(rightCmdMmS);

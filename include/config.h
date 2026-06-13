@@ -66,20 +66,21 @@ const int      MAX_PWM  = 1023;
 // Tiempo máximo sin recibir comandos
 #define COMM_TIMEOUT_MS 200
 
-// Límite de seguridad para comandos recibidos
+// Límite de seguridad para comandos recibidos 
 #define MAX_WHEEL_TICKS_PER_SEC 8000
 
 // Para pruebas con RemoteXY
-#define JOYSTICK_MAX_TICKS_PER_SEC 4000
+#define JOYSTICK_MAX_TICKS_PER_SEC 1000
 #define JOYSTICK_DEADZONE 5
 
 // Signo de ruedas.
 // Si al mandar left=1000/right=1000 una rueda gira al revés,
 // cambia el signo correspondiente a -1.
-#define LEFT_WHEEL_SIGN  1
-#define RIGHT_WHEEL_SIGN 1
+// Juega con estos dos valores, prueba -1 en uno de los dos:
+#define LEFT_WHEEL_SIGN   1
+#define RIGHT_WHEEL_SIGN -1   // <-- cambia este a -1
 #define LEFT_ENCODER_SIGN  -1
-#define RIGHT_ENCODER_SIGN -1
+#define RIGHT_ENCODER_SIGN  1   // <-- cambia este a 1
 
 // PID Gains
 extern double kp, ki, kd;
