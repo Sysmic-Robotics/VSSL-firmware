@@ -19,7 +19,7 @@ const int PWM_STATIC = 75;          // PWM base para vencer zona muerta
 const double PWM_PER_MM_S = 0.075;    // cuánto PWM suma por cada mm/s
 const int PID_CORRECTION_LIMIT = 250;
 const int CMD_DEADBAND_MM_S = 20;
-const float SPEED_SCALE = 0.5f;  // 0.5 = mitad, 1.0 = completo
+const float SPEED_SCALE = 0.25f;  // 0.5 = mitad, 1.0 = completo
 
 double mmpsToTicksPerControlCycle(double velocity_mm_s) {
     double velocity_m_s = velocity_mm_s / 1000.0;
@@ -147,81 +147,3 @@ void updateControl() {
         }
     }
 }
-/*
-void updateControl() {
-    if (millis() - lastPIDTime >= 20) {
-        long currPosI = encIzq.read();
-        long currPosD = encDer.read();
-
-        inputI = (double)(currPosI - oldPosI);
-        inputD = (double)(currPosD - oldPosD);
-        
-        oldPosI = currPosI;
-        oldPosD = currPosD;
-        lastPIDTime = millis();
-
-        // Mezcla cinemática diferencial simple
-        #ifdef CONTROL_SOFTWARE
-            // Entrada desde software: g_Input_X = velocidad lineal, g_Input_Y = velocidad angular
-            double linearCmd = g_Input_X * 3.0;
-            double angularCmd = g_Input_Y * 1.0;
-
-
-            // w = (1/r) * (v +/- (w*L)/2)
-            //setpointI = (1/WHEEL_RADIUS) * (linearCmd + (angularCmd * WHEEL_CENTER_DISTANCE) * 0.5);
-            //setpointD = (1/WHEEL_RADIUS) * (linearCmd - (angularCmd * WHEEL_CENTER_DISTANCE) * 0.5);
-            setpointI = g_Input_X * 2;
-            setpointD = g_Input_Y * 3;
-        #else
-
-            // Entrada tipo joystick:
-            // g_Input_Y = avance / retroceso
-            // g_Input_X = giro izquierda / derecha
-
-            const double LINEAR_GAIN  = 3.0;
-            const double TURN_GAIN    = 3.0;
-            const double JOYSTICK_DEADZONE = 5.0;
-
-            double linearCmd = g_Input_Y;
-            double turnCmd   = g_Input_X;
-
-            if (abs(linearCmd) < JOYSTICK_DEADZONE) linearCmd = 0;
-            if (abs(turnCmd)   < JOYSTICK_DEADZONE) turnCmd   = 0;
-
-            double linearSpeed = linearCmd * LINEAR_GAIN;
-            double turnSpeed   = turnCmd   * TURN_GAIN;
-
-            setpointI = linearSpeed + turnSpeed;
-            setpointD = linearSpeed - turnSpeed;
-
-        #endif
-        if (setpointI == 0){
-            pidIzq.SetMode(MANUAL);
-            outputI = 0;
-        } else {
-            pidIzq.SetMode(AUTOMATIC);
-            pidIzq.Compute();
-        }
-        
-        if (setpointD == 0){
-            pidDer.SetMode(MANUAL);
-            outputD = 0;
-        } else {
-            pidDer.SetMode(AUTOMATIC);
-            pidDer.Compute();
-        }
-        
-        driveMotor((int)outputI, MOT_IN1_PIN, MOT_IN2_PIN);
-        driveMotor((int)outputD, MOT_IN3_PIN, MOT_IN4_PIN);
-
-        // DEBUG 
-        DEBUG_PRINT("TgtL:"); DEBUG_PRINT(setpointI);
-        DEBUG_PRINT(" ActL:"); DEBUG_PRINT(inputI);
-        DEBUG_PRINT(" OutL:"); DEBUG_PRINT(outputI);
-
-        DEBUG_PRINT(" | TgtR:"); DEBUG_PRINT(setpointD);
-        DEBUG_PRINT(" ActR:"); DEBUG_PRINT(inputD);
-        DEBUG_PRINTLN(" OutR:"); DEBUG_PRINTLN(outputD);
-    }
-}
-    */

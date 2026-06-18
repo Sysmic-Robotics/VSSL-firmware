@@ -7,27 +7,30 @@
 //        CONFIGURACIÓN DE MODO
 // ==========================================
 // Descomenta para usar ESP-NOW (WIFI), comenta para RemoteXY (Bluetooth)
-// #define MODO_BASESTATION 
+#define MODO_BASESTATION 
 
 // Comentar para apagar el control por software (Controlar mediante mando externo)
 //#define CONTROL_SOFTWARE //lo voy a ocupar pa controlar mediante mpu 
 
 // ID de este robot (1 al 5)
-#define MI_ROBOT_ID 2
+#define MI_ROBOT_ID 0
 
 // ==========================================
 //               PINES HARDWARE
 // ==========================================
 
 // Encoders
-#define PIN_ENC_IZQ_A 1     // en el robotito con switch, el encoder taba dao vuelta. dar vuelta pa los demas en vola????
+#define PIN_ENC_IZQ_A 1     
 #define PIN_ENC_IZQ_B 0
 #define PIN_ENC_DER_A 3
 #define PIN_ENC_DER_B 4
 
 // Driver Motores DRV8833
+
+//Motor Derecho
 #define MOT_IN1_PIN 5   
 #define MOT_IN2_PIN 6   
+//Motor Izquierdo
 #define MOT_IN3_PIN 7   
 #define MOT_IN4_PIN 10  
 
@@ -78,23 +81,19 @@ const int      MAX_PWM  = 1023;
 // cambia el signo correspondiente a -1.
 // Juega con estos dos valores, prueba -1 en uno de los dos:
 #define LEFT_WHEEL_SIGN   1
-#define RIGHT_WHEEL_SIGN -1   // <-- cambia este a -1
+#define RIGHT_WHEEL_SIGN 1
 #define LEFT_ENCODER_SIGN  -1
-#define RIGHT_ENCODER_SIGN  1   // <-- cambia este a 1
+#define RIGHT_ENCODER_SIGN  -1
 
 // PID Gains
 extern double kp, ki, kd;
-
-// Variables de consigna globales (disponibles para todo el proyecto)
-//extern float g_Input_X;
-//extern float g_Input_Y;
 
 // Nuevas consignas globales: velocidades de rueda en mm/s
 extern volatile int16_t g_Left_MmPerSec;
 extern volatile int16_t g_Right_MmPerSec;
 
 // Variables del mpu
-extern float ax, ay, gy; //valores de aceleración en X e Y
+extern float ax, ay, gy;
 
 
 #endif
