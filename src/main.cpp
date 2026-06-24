@@ -11,34 +11,16 @@
 #include "control.h"
 #include "debug.h"
 #include "mpu.h"
+#include "kalman.h"
 
 void setup() {
+  initMotors();
+  
   Serial.begin(115200);
   delay(2000);
 
-  Serial.println();
-  Serial.println("BOOT ROBOT VSSS");
-
-  initMotors();
-  Serial.println("Motores inicializados");
-    
-
   initCommunication();
-  Serial.println("Comunicacion inicializada");
-
   initControl();
-  Serial.println("Control inicializado");
-
-  Serial.println("Sistema iniciado");
-
-  // initMPU();
-  
-  DEBUG_PRINTLN("Sistema inicializado.");
-  #ifdef MODO_BASESTATION
-    DEBUG_PRINTF("Modo: ESP-NOW | ID: %d\n", MI_ROBOT_ID);
-  #else
-    DEBUG_PRINTLN("Modo: Bluetooth (RemoteXY)");
-  #endif
 }
 
 void loop() {
@@ -55,5 +37,6 @@ void loop() {
   updateControl();
 
   // 4. Sensores opcionales
-  // updateMPU();
+  updateMPU();
+
 }

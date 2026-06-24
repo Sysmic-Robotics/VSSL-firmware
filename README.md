@@ -11,14 +11,8 @@ El comportamiento del robot se ajusta comentando (`//`) o descomentando las defi
 
 * **Para controlar por celular (RemoteXY):**
   * Comentar la línea: `//#define MODO_BASESTATION`
-  * Comentar la línea: `//#define CONTROL_SOFTWARE`
 
-* **Para controlar mediante la Base station (Mando manual):**
+* **Para controlar mediante la Base station:**
   * Descomentar la línea: `#define MODO_BASESTATION`
-  * Comentar la línea: `//#define CONTROL_SOFTWARE`
-
-* **Para controlar mediante Software (PC/Visión):**
-  * Descomentar la línea: `#define MODO_BASESTATION`
-  * Descomentar la línea: `#define CONTROL_SOFTWARE`
 
 > **PARA EL MODO BASESTATION ES IMPORTANTE MODIFICAR LA ID DEL ROBOT (`MI_ROBOT_ID`).**

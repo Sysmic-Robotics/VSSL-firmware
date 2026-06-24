@@ -6,14 +6,9 @@
 // ==========================================
 //        CONFIGURACIÓN DE MODO
 // ==========================================
-// Descomenta para usar ESP-NOW (WIFI), comenta para RemoteXY (Bluetooth)
-#define MODO_BASESTATION 
-
-// Comentar para apagar el control por software (Controlar mediante mando externo)
-//#define CONTROL_SOFTWARE //lo voy a ocupar pa controlar mediante mpu 
 
 // ID de este robot (1 al 5)
-#define MI_ROBOT_ID 0
+#define MI_ROBOT_ID 1
 
 // ==========================================
 //               PINES HARDWARE
@@ -61,6 +56,7 @@ const int      MAX_PWM  = 1023;
 // L: distancia de la rueda al centro del robot
 //const double WHEEL_RADIUS = 1.7; // 3.4 // 2.0
 //const double WHEEL_CENTER_DISTANCE = 3.7;  // 7.4//2
+#define WHEEL_CENTER_DISTANCE_MM 77
 
 // PID cada 20 ms
 #define CONTROL_INTERVAL_MS 20
@@ -89,8 +85,8 @@ const int      MAX_PWM  = 1023;
 extern double kp, ki, kd;
 
 // Nuevas consignas globales: velocidades de rueda en mm/s
-extern volatile int16_t g_Left_MmPerSec;
-extern volatile int16_t g_Right_MmPerSec;
+extern volatile int16_t g_v_cmd_mms;
+extern volatile int16_t g_W_cmd_degs;
 
 // Variables del mpu
 extern float ax, ay, gy;

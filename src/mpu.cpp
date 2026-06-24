@@ -7,7 +7,9 @@ const uint8_t MPU_ADDR = 0x68; // Dirección I2C del MPU6050
 
 float offsetx = 0.0;
 float offsety = 0.0;
+float offsetg = 0.0;
 
+float ax = 0.0, ay = 0.0, gy = 0.0;
 int16_t lastMPUtime = 0;
 
 int16_t tempx, tempy, tempg;
@@ -31,7 +33,7 @@ void initMPU() {
     //calibracion del acelerometro
 
     int muestras = 100;
-    long sumax = 0, sumay = 0;
+    long sumax = 0, sumay = 0, sumag= 0;
     
     for (int i = 0; i < muestras; i++) {
         Wire.beginTransmission(MPU_ADDR);
@@ -42,16 +44,20 @@ void initMPU() {
 
         int16_t rawAx = (Wire.read() << 8 | Wire.read()); // Aceleración en X
         int16_t rawAy = (Wire.read() << 8 | Wire.read()); // Aceleración en Y
-
+        Wire.read(); Wire.read(); // Ignorar Z accel
+        Wire.read(); Wire.read(); // Ignorar Temp
+        Wire.read(); Wire.read(); // Ignorar Gyro X
+        Wire.read(); Wire.read(); // Ignorar Gyro Y
+        int16_t rawGz = (Wire.read() << 8 | Wire.read());
         sumax += rawAx;
         sumay += rawAy;
+        sumag += rawGz;
         delay(2);
     }
     
     offsetx = ((float)sumax / muestras / 16384.0)* 9.81; // Convertir a m/s² (asumiendo sensibilidad de ±2g)
     offsety = ((float)sumay / muestras / 16384.0)* 9.81; // Convertir a m/s² (asumiendo sensibilidad de ±2g)
-
-    DEBUG_PRINT("Setup listo. OffsetX: "); DEBUG_PRINT(offsetx); DEBUG_PRINT(" m/s² | OffsetY: "); DEBUG_PRINT(offsety); DEBUG_PRINTLN(" m/s²");
+    offsetg = ((float)sumag / muestras / 131.0);
 }
 
 void updateMPU() {
@@ -76,9 +82,9 @@ void updateMPU() {
         Wire.read(); Wire.read(); // Ignorar Y del giroscopio
         tempg = Wire.read() << 8 | Wire.read(); // Giroscopio
 
-        float ax = (tempx / 16384.0) * 9.81 - offsetx; // Convertir a m/s² y aplicar offset
-        float ay = (tempy / 16384.0) * 9.81 - offsety; // Convertir a m/s² y aplicar offset
-        float gy = tempg / 131.0; // Convertir a grados/s (asumiendo sensibilidad de ±250°/s)
+        ax = (tempx / 16384.0) * 9.81 - offsetx; // Convertir a m/s² y aplicar offset
+        ay = (tempy / 16384.0) * 9.81 - offsety; // Convertir a m/s² y aplicar offset
+        gy = tempg / 131.0 - offsetg; // Convertir a grados/s (asumiendo sensibilidad de ±250°/s)
 
         DEBUG_PRINT("Acceleracion en X: "); DEBUG_PRINT(ax); DEBUG_PRINT(" m/s² | Aceleracion en Y: "); DEBUG_PRINT(ay); DEBUG_PRINT(" m/s² | Giroscopio Z: "); DEBUG_PRINT(gy); DEBUG_PRINTLN(" °/s");
         }

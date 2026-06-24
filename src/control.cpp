@@ -1,5 +1,10 @@
 #include "control.h"
 #include "debug.h"
+#include "kalman.h"
+
+KalmanVelocityFilter filtroOmega(0.02f, 15.0f);
+
+float omega_filtrada_deg_s = 0.0;
 
 Encoder encIzq(PIN_ENC_IZQ_A, PIN_ENC_IZQ_B);
 Encoder encDer(PIN_ENC_DER_A, PIN_ENC_DER_B);
@@ -55,7 +60,31 @@ void initControl() {
     pidIzq.SetMode(AUTOMATIC);
     pidDer.SetMode(AUTOMATIC);
 }
+
 void updateControl() {
+    float v_cmd = (float)g_v_cmd_mms * SPEED_SCALE;
+        float w_cmd = (float)g_W_cmd_degs * SPEED_SCALE;
+
+        float leftCmdMmS_calc = 0;
+        float rightCmdMmS_calc = 0;
+
+        // Si la orden es estar quieto, ignorar cualquier lectura residual del sensor
+        if (v_cmd == 0.0f && w_cmd == 0.0f) {
+            leftCmdMmS_calc = 0;
+            rightCmdMmS_calc = 0;
+        } else {
+            float kp_w = 0.05f;
+            float error_w = w_cmd - omega_filtrada_deg_s;
+            float w_correction = kp_w * error_w;
+            float w_final_rad_s = (w_cmd + w_correction) * (PI / 180.0f);
+
+            leftCmdMmS_calc = v_cmd - (w_final_rad_s * (WHEEL_CENTER_DISTANCE_MM / 2.0f));
+            rightCmdMmS_calc = v_cmd + (w_final_rad_s * (WHEEL_CENTER_DISTANCE_MM / 2.0f));
+        }
+
+        int leftCmdMmS = LEFT_WHEEL_SIGN * (int)leftCmdMmS_calc;
+        
+        
     if (millis() - lastPIDTime >= CONTROL_INTERVAL_MS) {
 
         long currPosI = encIzq.read();
@@ -68,8 +97,35 @@ void updateControl() {
         oldPosD = currPosD;
         lastPIDTime = millis();
 
-        int leftCmdMmS  = LEFT_WHEEL_SIGN  * (int)(g_Left_MmPerSec * SPEED_SCALE);
-        int rightCmdMmS = RIGHT_WHEEL_SIGN * (int)(g_Right_MmPerSec * SPEED_SCALE);
+        // Filtro de kalman:
+
+        float factor_conversion = (PI * (WHEEL_DIAMETER_M * 1000.0)) / (ENCODER_TICKS_PER_WHEEL_REV * CONTROL_DT_S); // mm/s por tick
+        float vel_Izq_mms = inputI * factor_conversion;
+        float vel_Der_mms = inputD * factor_conversion;
+
+        float omega_enc_rad_s = (vel_Der_mms - vel_Izq_mms) / (WHEEL_CENTER_DISTANCE_MM); // rad/s
+        float omega_enc_deg_s = omega_enc_rad_s * (180.0 / PI);
+
+        // Actualizar el filtro de Kalman
+        omega_filtrada_deg_s = filtroOmega.update(gy, omega_enc_deg_s);
+
+        // fin
+        
+        float v_cmd = (float)g_v_cmd_mms * SPEED_SCALE;
+        float w_cmd = (float)g_W_cmd_degs * SPEED_SCALE;
+
+        float kp_w = 0.05f;
+        float error_w = w_cmd - omega_filtrada_deg_s;
+
+        float w_correction = kp_w * error_w;
+
+        float w_final_rad_s = (w_cmd + w_correction) * (PI / 180.0f);
+
+        float leftCmdMmS_calc = v_cmd - (w_final_rad_s * (WHEEL_CENTER_DISTANCE_MM / 2.0f));
+        float rightCmdMmS_calc = v_cmd + (w_final_rad_s * (WHEEL_CENTER_DISTANCE_MM / 2.0f));
+
+        int leftCmdMmS = LEFT_WHEEL_SIGN * (int)leftCmdMmS_calc;
+        int rightCmdMmS = RIGHT_WHEEL_SIGN * (int)rightCmdMmS_calc;
 
         setpointI = mmpsToTicksPerControlCycle(leftCmdMmS);
         setpointD = mmpsToTicksPerControlCycle(rightCmdMmS);
@@ -104,46 +160,5 @@ void updateControl() {
 
         driveMotor(pwmI, MOT_IN1_PIN, MOT_IN2_PIN);
         driveMotor(pwmD, MOT_IN3_PIN, MOT_IN4_PIN);
-
-        static unsigned long lastDebug = 0;
-        if (millis() - lastDebug > 500) {
-            Serial.print("CmdL_mm/s:");
-            Serial.print(g_Left_MmPerSec);
-
-            Serial.print(" CmdR_mm/s:");
-            Serial.print(g_Right_MmPerSec);
-
-            Serial.print(" SetL_ticks:");
-            Serial.print(setpointI);
-
-            Serial.print(" ActL_ticks:");
-            Serial.print(inputI);
-
-            Serial.print(" FF_L:");
-            Serial.print(ffI);
-
-            Serial.print(" PID_L:");
-            Serial.print(outputI);
-
-            Serial.print(" PWM_L:");
-            Serial.print(pwmI);
-
-            Serial.print(" | SetR_ticks:");
-            Serial.print(setpointD);
-
-            Serial.print(" ActR_ticks:");
-            Serial.print(inputD);
-
-            Serial.print(" FF_R:");
-            Serial.print(ffD);
-
-            Serial.print(" PID_R:");
-            Serial.print(outputD);
-
-            Serial.print(" PWM_R:");
-            Serial.println(pwmD);
-
-            lastDebug = millis();
-        }
     }
 }
