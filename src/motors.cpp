@@ -2,6 +2,15 @@
 #include "config.h"
 
 void initMotors() {
+    // IMPRESCINDIBLE antes del primer analogWrite(): el core de Arduino-ESP32
+    // arranca en 8 bits (0..255) y 1 kHz. Sin esto, MAX_PWM=1023 es mentira
+    // (todo lo que pase de 255 se recorta) y el driver chilla a 1 kHz.
+    // Se fija primero la frecuencia y luego la resolución, que es el orden
+    // que exige el core. A 10 bits el techo del LEDC son 78 kHz, así que
+    // 20 kHz entra sin problema.
+    analogWriteFrequency(PWM_FREQ);
+    analogWriteResolution(PWM_RES);
+
     pinMode(MOT_IN1_PIN, OUTPUT);
     pinMode(MOT_IN2_PIN, OUTPUT);
     pinMode(MOT_IN3_PIN, OUTPUT);

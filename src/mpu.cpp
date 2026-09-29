@@ -16,6 +16,7 @@ static Adafruit_MPU6050 mpu;
 static bool mpuReady = false;
 static float gyroZBiasRadS = 0.0f;
 static volatile float yawRateRadS = 0.0f;
+static volatile float yawAngleRad = 0.0f;
 static unsigned long lastMpuTime = 0;
 
 void initMPU() {
@@ -45,6 +46,7 @@ void initMPU() {
 
     gyroZBiasRadS = (float)(sumaGyroZ / muestras);
     yawRateRadS = 0.0f;
+    yawAngleRad = 0.0f;
     lastMpuTime = millis();
 
     DEBUG_PRINT("MPU6050 listo. Bias gyroZ (rad/s): ");
@@ -54,19 +56,34 @@ void initMPU() {
 void updateMPU() {
     if (!mpuReady) return;
 
-    if (millis() - lastMpuTime >= MPU_INTERVAL_MS) {
-        lastMpuTime = millis();
+    unsigned long now = millis();
+    if (now - lastMpuTime >= MPU_INTERVAL_MS) {
+        float dt = (now - lastMpuTime) / 1000.0f;
+        lastMpuTime = now;
 
         sensors_event_t a, g, temp;
         mpu.getEvent(&a, &g, &temp);
 
         float raw = (GYRO_Z_SIGN) * (g.gyro.z - gyroZBiasRadS);
         yawRateRadS = YAW_RATE_FILTER_ALPHA * raw + (1.0f - YAW_RATE_FILTER_ALPHA) * yawRateRadS;
+
+        // Integración del ángulo. Si hubo una pausa larga (arranque, bloqueo),
+        // no integramos ese salto como si fuera movimiento real.
+        if (dt > 0.2f) dt = 0.2f;
+        yawAngleRad += yawRateRadS * dt;
     }
 }
 
 float getYawRateRadPerSec() {
     return yawRateRadS;
+}
+
+float getYawAngleRad() {
+    return yawAngleRad;
+}
+
+void resetYawAngle() {
+    yawAngleRad = 0.0f;
 }
 
 bool isMPUReady() {

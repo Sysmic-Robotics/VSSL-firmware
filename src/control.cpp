@@ -8,7 +8,10 @@ Encoder encDer(PIN_ENC_DER_A, PIN_ENC_DER_B);
 double setpointI, inputI, outputI;
 double setpointD, inputD, outputD;
 
-double kp=1, ki=0.10, kd=0.0;
+// Ganancias del PID de velocidad por rueda. La salida está en unidades de
+// PWM, así que al pasar la escala real de 255 a 1023 (ver initMotors) hay
+// que multiplicarlas por 4 para conservar la misma respuesta del lazo.
+double kp=4.0, ki=0.40, kd=0.0;
 
 // Ganancias del corrector de guiñada (lazo exterior sobre el gyro).
 // El robot alcanza altas velocidades angulares, por lo que ki_yaw se mantiene
@@ -21,9 +24,28 @@ PID pidDer(&inputD, &outputD, &setpointD, kp, ki, kd, DIRECT);
 long oldPosI = 0, oldPosD = 0;
 unsigned long lastPIDTime = 0;
 
-const int PWM_STATIC = 150;          // PWM base para vencer zona muerta
-const double PWM_PER_MM_S = 0.15;    // cuánto PWM suma por cada mm/s
-const int PID_CORRECTION_LIMIT = 250;
+// --- Feedforward: PWM estimado para una velocidad de rueda dada ---
+// Ambos valores estaban afinados a mano para la escala real de 255 que había
+// antes, y con un error grave: PWM_STATIC=150 era un SUELO del 59% de duty
+// aplicado a cualquier consigna > CMD_DEADBAND_MM_S. Por eso al pedir
+// 48 mm/s la rueda salía a ~306 mm/s: el feedforward disparaba solo.
+//
+// Recalibrados sobre la escala correcta de 1023 y con la medición real de
+// la telemetría (47% de duty -> ~306 mm/s, o sea ~650 mm/s a fondo):
+//   PWM_STATIC    -> solo lo justo para vencer la fricción de arranque.
+//                    Para medirlo: bájalo hasta que la rueda ya no arranque
+//                    sola con una consigna mínima, y súbele un 20%.
+//   PWM_PER_MM_S  -> pendiente hasta el tope: (1023 - 90) / 464 ~= 2.01.
+//
+// Calibrado con dos puntos medidos en la rueda izquierda:
+//   PWM  542 (53% duty) -> 260 mm/s
+//   PWM 1023 (100%)     -> 464 mm/s   <- tope físico con batería 2S
+const int PWM_STATIC = 90;
+const double PWM_PER_MM_S = 2.00;
+// Autoridad del PID sobre el feedforward. Con el feedforward ya calibrado le
+// basta con ~±100 para cerrar, así que 400 da margen de sobra y a la vez
+// acota el windup del integrador si alguna vez se pide algo inalcanzable.
+const int PID_CORRECTION_LIMIT = 400;
 const int CMD_DEADBAND_MM_S = 20;
 
 // Límite del término integral del corrector de guiñada, en rad (error*dt acumulado).

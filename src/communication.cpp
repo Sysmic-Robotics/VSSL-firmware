@@ -1,6 +1,8 @@
 #include "communication.h"
 #include "debug.h"
+#include "mpu.h"
 #include <string.h>
+#include <math.h>
 #include <esp_wifi.h>
 
 #define ESPNOW_CHANNEL 1
@@ -126,6 +128,125 @@ struct {
 } RemoteXY;
 #pragma pack(pop)
 
+// ==========================================
+//     PROCESAMIENTO DEL JOYSTICK
+// ==========================================
+// El joystick de la app entrega dos ejes de -100 a 100. El objetivo es
+// convertirlos en una consigna (v, w) limpia: sin saltos, sin pedir a las
+// ruedas más de lo que pueden dar y sin arranques bruscos que hagan patinar.
+// Una vez generada, la consigna entra al MISMO lazo de control que en modo
+// base station, así que los encoders siguen garantizando que la velocidad
+// pedida sea la velocidad real.
+
+static float joyLinear = 0.0f;      // mm/s, ya suavizado por la rampa
+static float joyAngular = 0.0f;     // mrad/s, ya suavizado por la rampa
+static unsigned long lastJoystickUpdate = 0;
+
+static bool headingHoldArmed = false;
+static float headingTargetRad = 0.0f;
+
+static void resetJoystickState() {
+    joyLinear = 0.0f;
+    joyAngular = 0.0f;
+    lastJoystickUpdate = 0;
+    headingHoldArmed = false;
+}
+
+// Zona muerta radial con reescalado: se mide el vector completo del stick,
+// y al salir de la zona muerta la salida arranca desde cero en vez de dar
+// un escalón. Así el robot no "salta" al despegar el dedo del centro.
+static void applyRadialDeadzone(float *x, float *y) {
+    float magnitude = sqrtf((*x) * (*x) + (*y) * (*y));
+
+    if (magnitude <= JOYSTICK_DEADZONE) {
+        *x = 0.0f;
+        *y = 0.0f;
+        return;
+    }
+
+    float scale = (magnitude - JOYSTICK_DEADZONE) / magnitude;
+    *x *= scale;
+    *y *= scale;
+}
+
+// Normaliza un eje a -1..1 y le aplica la curva expo.
+static float shapeAxis(float axis) {
+    float norm = constrain(axis / (100.0f - JOYSTICK_DEADZONE), -1.0f, 1.0f);
+    float expo = constrain((float)JOYSTICK_EXPO, 0.0f, 1.0f);
+
+    return (1.0f - expo) * norm + expo * norm * norm * norm;
+}
+
+// Rampa: acerca 'current' a 'target' como mucho maxStep por ciclo.
+static float slewTowards(float current, float target, float maxStep) {
+    if (maxStep <= 0.0f) return current;
+
+    float delta = target - current;
+    if (delta >  maxStep) return current + maxStep;
+    if (delta < -maxStep) return current - maxStep;
+
+    return target;
+}
+
+// Mezcla anti-saturación: si la combinación (v, w) le pediría a una rueda
+// más de lo permitido, escala v y w JUNTOS. Recortar cada rueda por separado
+// deformaría la curva; escalando en bloque el robot sigue exactamente la
+// trayectoria pedida, solo que más lento.
+static void limitWheelEnvelope(float *v_mm_s, float *w_mrad_s, float maxWheel_mm_s) {
+    if (maxWheel_mm_s <= 0.0f) {
+        *v_mm_s = 0.0f;
+        *w_mrad_s = 0.0f;
+        return;
+    }
+
+    float halfTrack_mm = WHEEL_TRACK_MM / 2.0f;
+    float demand = fabsf(*v_mm_s) + fabsf((*w_mrad_s / 1000.0f) * halfTrack_mm);
+
+    if (demand > maxWheel_mm_s) {
+        float k = maxWheel_mm_s / demand;
+        *v_mm_s *= k;
+        *w_mrad_s *= k;
+    }
+}
+
+// Mantención de rumbo. Mientras se avanza sin pedir giro, se memoriza el
+// rumbo y se corrige el error de ángulo acumulado. El lazo interno solo
+// regula velocidad angular: lleva w a cero, pero no devuelve los grados ya
+// perdidos. Esto sí, y es lo que hace que el robot vaya recto de verdad.
+static float applyHeadingHold(float v_mm_s, float w_mrad_s) {
+#if JOYSTICK_HEADING_HOLD
+    if (!isMPUReady()) {
+        headingHoldArmed = false;
+        return w_mrad_s;
+    }
+
+    bool wantsTurn = fabsf(w_mrad_s) > JOYSTICK_HEADING_ARM_ANGULAR_MRAD_S;
+    bool moving = fabsf(v_mm_s) > JOYSTICK_HEADING_ARM_LINEAR_MM_S;
+
+    // Si el piloto está girando, o el robot está detenido, el hold se
+    // desarma y el rumbo memorizado se descarta.
+    if (wantsTurn || !moving) {
+        headingHoldArmed = false;
+        return w_mrad_s;
+    }
+
+    // Primer ciclo yendo recto: se fija el rumbo a mantener.
+    if (!headingHoldArmed) {
+        headingTargetRad = getYawAngleRad();
+        headingHoldArmed = true;
+    }
+
+    float error = headingTargetRad - getYawAngleRad();
+    float correction = JOYSTICK_HEADING_KP_MRAD_PER_RAD * error;
+
+    return constrain(correction,
+                     -(float)JOYSTICK_HEADING_MAX_CORRECTION_MRAD_S,
+                      (float)JOYSTICK_HEADING_MAX_CORRECTION_MRAD_S);
+#else
+    return w_mrad_s;
+#endif
+}
+
 #endif
 
 
@@ -188,31 +309,55 @@ void updateCommunication() {
 
     if (RemoteXY.connect_flag) {
 
-        // Mando_Y = avance/retroceso -> velocidad lineal
-        // Mando_X = giro izquierda/derecha -> velocidad angular
-        int16_t linear = map(
-            RemoteXY.Mando_Y,
-            -100, 100,
-            -JOYSTICK_MAX_LINEAR_MM_S,
-            JOYSTICK_MAX_LINEAR_MM_S
-        );
+        unsigned long now = millis();
+        float dt = (lastJoystickUpdate == 0)
+                     ? 0.0f
+                     : (now - lastJoystickUpdate) / 1000.0f;
+        lastJoystickUpdate = now;
+        dt = constrain(dt, 0.0f, 0.1f);
 
-        int16_t angular = map(
-            RemoteXY.Mando_X,
-            -100, 100,
-            -JOYSTICK_MAX_ANGULAR_MRAD_S,
-            JOYSTICK_MAX_ANGULAR_MRAD_S
-        );
+        // 1. Lectura cruda de los dos ejes del joystick (-100 a 100).
+        float rawX = RemoteXY.Mando_X;   // izquierda/derecha -> giro
+        float rawY = RemoteXY.Mando_Y;   // adelante/atrás    -> avance
 
-        if (abs(RemoteXY.Mando_Y) < JOYSTICK_DEADZONE) linear = 0;
-        if (abs(RemoteXY.Mando_X) < JOYSTICK_DEADZONE) angular = 0;
+        // 2. Zona muerta radial sobre el vector completo del stick.
+        applyRadialDeadzone(&rawX, &rawY);
 
-        g_Linear_MmPerSec = clampInt16(linear, MAX_LINEAR_MM_S);
-        g_Angular_MradPerSec = clampInt16(angular, MAX_ANGULAR_MRAD_S);
+        // 3. Curva expo: control fino cerca del centro, tope intacto.
+        float fwd  = shapeAxis(rawY);
+        float turn = shapeAxis(rawX) * JOYSTICK_TURN_SIGN;
+
+        // 4. Limitador de velocidad (0..1) y modo preciso con el botón.
+        float limit = constrain((float)JOYSTICK_SPEED_LIMIT, 0.0f, 1.0f);
+        if (RemoteXY.Boton_1) {
+            limit *= constrain((float)JOYSTICK_PRECISION_FACTOR, 0.0f, 1.0f);
+        }
+
+        // La velocidad angular de un pivote a fondo se deriva de la velocidad
+        // de rueda deseada: w = v_rueda / (ancho de vía / 2).
+        float maxAngular_mrad_s = (JOYSTICK_PIVOT_WHEEL_MM_S / (WHEEL_TRACK_MM / 2.0f)) * 1000.0f;
+
+        float vTarget = fwd  * JOYSTICK_MAX_LINEAR_MM_S * limit;
+        float wTarget = turn * maxAngular_mrad_s         * limit;
+
+        // 5. Que la mezcla nunca pida a una rueda más de lo permitido.
+        limitWheelEnvelope(&vTarget, &wTarget, JOYSTICK_MAX_LINEAR_MM_S * limit);
+
+        // 6. Rampas de aceleración: sin tirones, las ruedas no patinan y
+        //    los encoders siguen midiendo la velocidad real del robot.
+        joyLinear  = slewTowards(joyLinear,  vTarget, JOYSTICK_LINEAR_SLEW_MM_S2 * dt);
+        joyAngular = slewTowards(joyAngular, wTarget, JOYSTICK_ANGULAR_SLEW_MRAD_S2 * dt);
+
+        // 7. Mantención de rumbo con el giroscopio al ir recto.
+        float wOut = applyHeadingHold(joyLinear, joyAngular);
+
+        g_Linear_MmPerSec = clampInt16((int32_t)lroundf(joyLinear), MAX_LINEAR_MM_S);
+        g_Angular_MradPerSec = clampInt16((int32_t)lroundf(wOut), MAX_ANGULAR_MRAD_S);
 
         markCommandReceived();
 
     } else {
+        resetJoystickState();
         clearVelocityCommands();
         communicationConnected = false;
     }
