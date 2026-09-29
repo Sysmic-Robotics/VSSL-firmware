@@ -136,8 +136,18 @@ void updateControl() {
         double leftTarget_mm_s  = linearCmd_mm_s - angularCmd_rad_s * halfTrack_mm - yawCorrection_mm_s / 2.0;
         double rightTarget_mm_s = linearCmd_mm_s + angularCmd_rad_s * halfTrack_mm + yawCorrection_mm_s / 2.0;
 
-        leftTarget_mm_s  = constrain(leftTarget_mm_s,  -MAX_WHEEL_MM_S, MAX_WHEEL_MM_S);
-        rightTarget_mm_s = constrain(rightTarget_mm_s, -MAX_WHEEL_MM_S, MAX_WHEEL_MM_S);
+        // Si la mezcla le pide a alguna rueda más de lo que el robot da, se
+        // escalan las DOS por el mismo factor. Recortarlas por separado
+        // cambiaría la relación v/w, o sea la curvatura: el robot dejaría de
+        // seguir el arco que le pidieron, que es justo lo que el software de
+        // visión no puede permitirse. Escalando en bloque recorre el mismo
+        // arco, sólo que más lento.
+        double maxWheel_mm_s = fmax(fabs(leftTarget_mm_s), fabs(rightTarget_mm_s));
+        if (maxWheel_mm_s > MAX_WHEEL_MM_S) {
+            double k = MAX_WHEEL_MM_S / maxWheel_mm_s;
+            leftTarget_mm_s  *= k;
+            rightTarget_mm_s *= k;
+        }
 
         double leftCmdMmS  = LEFT_WHEEL_SIGN  * leftTarget_mm_s;
         double rightCmdMmS = RIGHT_WHEEL_SIGN * rightTarget_mm_s;

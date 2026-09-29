@@ -50,24 +50,29 @@ static int16_t clampInt16(int32_t value, int32_t limit) {
 #include <esp_now.h>
 #include <WiFi.h>
 
+// Estos tres valores y la estructura de abajo deben coincidir EXACTAMENTE con
+// base_station_lineal_angulo.ino. Si se cambia uno, hay que cambiar el otro.
 #define COMM_MAGIC 0xA5
-#define COMM_VERSION 2
+#define COMM_VERSION 1
 #define NUM_ROBOTS 5
 
-// Consigna de velocidad del robot completo, tal como la entrega el software
-// de visión: velocidad lineal (mm/s) y angular (mrad/s). La estación base
-// solo retransmite estos valores, no le interesa cómo se generan.
+// Consigna de velocidad del robot completo tal como la envía la estación base.
+// OJO con las unidades: la velocidad angular viaja en GRADOS/s, mientras que
+// internamente el firmware trabaja en mrad/s. La conversión se hace al recibir.
 typedef struct __attribute__((packed)) {
-    int16_t linear_mm_s;
-    int16_t angular_mrad_s;
-} RobotVelocityCommand;
+    int16_t v_mms;    // velocidad lineal, mm/s
+    int16_t w_degs;   // velocidad angular, grados/s
+} RobotCommand;
 
 typedef struct __attribute__((packed)) {
     uint8_t magic;
     uint8_t version;
     uint16_t seq;
-    RobotVelocityCommand robots[NUM_ROBOTS];
+    RobotCommand robots[NUM_ROBOTS];
 } CommandPacket;
+
+// grados/s -> mrad/s : x (PI/180) x 1000
+#define DEG_S_TO_MRAD_S 17.453293f
 
 void OnDataRecv(const uint8_t * mac, const uint8_t *data, int len) {
     if (len != sizeof(CommandPacket)) {
@@ -90,8 +95,10 @@ void OnDataRecv(const uint8_t * mac, const uint8_t *data, int len) {
 
     int idx = MI_ROBOT_ID - 1;
 
-    g_Linear_MmPerSec = clampInt16(packet.robots[idx].linear_mm_s, MAX_LINEAR_MM_S);
-    g_Angular_MradPerSec = clampInt16(packet.robots[idx].angular_mrad_s, MAX_ANGULAR_MRAD_S);
+    int32_t w_mrad_s = (int32_t)lroundf(packet.robots[idx].w_degs * DEG_S_TO_MRAD_S);
+
+    g_Linear_MmPerSec = clampInt16(packet.robots[idx].v_mms, MAX_LINEAR_MM_S);
+    g_Angular_MradPerSec = clampInt16(w_mrad_s, MAX_ANGULAR_MRAD_S);
 
     DEBUG_PRINT("Cmd recibido v=");
     DEBUG_PRINT(g_Linear_MmPerSec);

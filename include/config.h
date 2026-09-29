@@ -7,7 +7,7 @@
 //        CONFIGURACIÓN DE MODO
 // ==========================================
 // Descomenta para usar ESP-NOW (WIFI), comenta para RemoteXY (Bluetooth)
-// #define MODO_BASESTATION
+#define MODO_BASESTATION
 
 // ID de este robot (1 al 5)
 #define MI_ROBOT_ID 2
@@ -39,6 +39,13 @@ const uint32_t PWM_FREQ = 20000;
 const uint8_t  PWM_RES  = 10;     // 10 bits = 0 a 1023
 const int      MAX_PWM  = 1023;
 
+// Modo de conmutación del DRV8833 (ver driveMotor en motors.cpp).
+//   1 = decaimiento lento (avance <-> freno): mucho menos zona muerta y
+//       respuesta duty->velocidad mas lineal. Consume y calienta algo mas.
+//   0 = decaimiento rapido (avance <-> libre): el comportamiento anterior.
+// Al cambiarlo hay que RECALIBRAR PWM_STATIC y PWM_PER_MM_S en control.cpp.
+#define MOTOR_SLOW_DECAY 1
+
 // ==========================================
 //        PARÁMETROS FÍSICOS DEL ROBOT
 // ==========================================
@@ -66,13 +73,18 @@ const int      MAX_PWM  = 1023;
 // ==========================================
 //        LÍMITES DE LAS CONSIGNAS (v, w)
 // ==========================================
-// Velocidad lineal máxima aceptada, en mm/s.
+// Topes de seguridad de lo que se acepta por ESP-NOW. Se alinean con los de
+// base_station_lineal_angulo.ino (MAX_V_MM_S 1500, MAX_W_DEG_S 720) para no
+// recortar en silencio un valor que la estación base considera válido:
+//   720 grados/s x 17.4533 = 12566 mrad/s
 #define MAX_LINEAR_MM_S 1500
-// Velocidad angular máxima aceptada, en mrad/s (1000 mrad/s = 1 rad/s).
-#define MAX_ANGULAR_MRAD_S 12000
+#define MAX_ANGULAR_MRAD_S 12600
 
-// Límite de seguridad para la velocidad de rueda resultante (cinemática + corrección)
-#define MAX_WHEEL_MM_S 2000
+// Límite de seguridad para la velocidad de rueda resultante (cinemática +
+// corrección). Ajustado al techo físico medido (~464 mm/s por rueda): así
+// una consigna imposible se recorta aquí en vez de saturar el PWM y dejar al
+// PID sin autoridad, cosa que antes con 2000 nunca llegaba a ocurrir.
+#define MAX_WHEEL_MM_S 450
 
 // ==========================================
 //   CONTROL MANUAL POR JOYSTICK (RemoteXY)
@@ -87,7 +99,10 @@ const int      MAX_PWM  = 1023;
 // Es el único número que hay que tocar para que el robot vaya más lento o
 // más rápido: escala por igual el avance y el giro, así que el robot se
 // maneja igual, solo que más despacio.
-#define JOYSTICK_SPEED_LIMIT 0.80f
+// A 1.00 el robot pide 450 mm/s, que es prácticamente el techo físico medido
+// (464 mm/s). Si quieres que el corrector del giroscopio conserve autoridad a
+// velocidad máxima, baja a 0.85-0.90: a fondo de PWM el PID no puede corregir.
+#define JOYSTICK_SPEED_LIMIT 1.00f
 
 // Factor extra mientras Boton_1 vale 1 (modo preciso, para acercarse a la
 // pelota sin pasarse). Se multiplica encima de JOYSTICK_SPEED_LIMIT.
