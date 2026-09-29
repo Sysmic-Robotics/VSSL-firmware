@@ -7,6 +7,6 @@ void initCommunication();
 void updateCommunication();
 
 bool isCommunicationConnected();
-void clearWheelCommands();
+void clearVelocityCommands();
 
 #endif

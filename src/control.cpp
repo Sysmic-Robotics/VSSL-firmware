@@ -1,5 +1,6 @@
 #include "control.h"
 #include "debug.h"
+#include "mpu.h"
 
 Encoder encIzq(PIN_ENC_IZQ_A, PIN_ENC_IZQ_B);
 Encoder encDer(PIN_ENC_DER_A, PIN_ENC_DER_B);
@@ -8,6 +9,11 @@ double setpointI, inputI, outputI;
 double setpointD, inputD, outputD;
 
 double kp=1, ki=0.10, kd=0.0;
+
+// Ganancias del corrector de guiñada (lazo exterior sobre el gyro).
+// El robot alcanza altas velocidades angulares, por lo que ki_yaw se mantiene
+// bajo para evitar oscilaciones; ajustar en cancha.
+double kp_yaw = 40.0, ki_yaw = 5.0;
 
 PID pidIzq(&inputI, &outputI, &setpointI, kp, ki, kd, DIRECT);
 PID pidDer(&inputD, &outputD, &setpointD, kp, ki, kd, DIRECT);
@@ -20,6 +26,10 @@ const double PWM_PER_MM_S = 0.15;    // cuánto PWM suma por cada mm/s
 const int PID_CORRECTION_LIMIT = 250;
 const int CMD_DEADBAND_MM_S = 20;
 
+// Límite del término integral del corrector de guiñada, en rad (error*dt acumulado).
+const double YAW_INTEGRAL_LIMIT = 5.0;
+static double yawIntegral = 0.0;
+
 double mmpsToTicksPerControlCycle(double velocity_mm_s) {
     double velocity_m_s = velocity_mm_s / 1000.0;
     double wheel_circumference = PI * WHEEL_DIAMETER_M;
@@ -30,14 +40,14 @@ double mmpsToTicksPerControlCycle(double velocity_mm_s) {
     return ticks_per_sec * CONTROL_DT_S;
 }
 
-int feedForwardPWM(int velocity_mm_s) {
-    if (abs(velocity_mm_s) < CMD_DEADBAND_MM_S) {
+int feedForwardPWM(double velocity_mm_s) {
+    if (fabs(velocity_mm_s) < CMD_DEADBAND_MM_S) {
         return 0;
     }
 
     int sign = (velocity_mm_s > 0) ? 1 : -1;
 
-    int pwm = PWM_STATIC + (int)(PWM_PER_MM_S * abs(velocity_mm_s));
+    int pwm = PWM_STATIC + (int)(PWM_PER_MM_S * fabs(velocity_mm_s));
     pwm = constrain(pwm, 0, MAX_PWM);
 
     return sign * pwm;
@@ -54,6 +64,7 @@ void initControl() {
     pidIzq.SetMode(AUTOMATIC);
     pidDer.SetMode(AUTOMATIC);
 }
+
 void updateControl() {
     if (millis() - lastPIDTime >= CONTROL_INTERVAL_MS) {
 
@@ -67,13 +78,56 @@ void updateControl() {
         oldPosD = currPosD;
         lastPIDTime = millis();
 
-        int leftCmdMmS  = LEFT_WHEEL_SIGN  * g_Left_MmPerSec;
-        int rightCmdMmS = RIGHT_WHEEL_SIGN * g_Right_MmPerSec;
+        // --------------------------------------------------------
+        // 1. Cinemática diferencial: (v, w) del robot -> velocidad
+        //    objetivo de cada rueda, en mm/s.
+        // --------------------------------------------------------
+        double linearCmd_mm_s  = g_Linear_MmPerSec;          // v, mm/s
+        double angularCmd_rad_s = g_Angular_MradPerSec / 1000.0; // w, rad/s
 
+        bool idle = (g_Linear_MmPerSec == 0 && g_Angular_MradPerSec == 0);
+
+        double halfTrack_mm = WHEEL_TRACK_MM / 2.0;
+
+        // --------------------------------------------------------
+        // 2. Corrección de guiñada con el giroscopio: compara la w
+        //    realmente medida por el MPU6050 contra la comandada y
+        //    aporta una corrección diferencial adicional. Esto
+        //    compensa deslizamiento de ruedas y asimetrías mecánicas
+        //    que el encoder, al medir solo la rueda, no puede ver.
+        // --------------------------------------------------------
+        double yawCorrection_mm_s = 0.0;
+
+        if (!idle && isMPUReady()) {
+            double yawMeasured_rad_s = getYawRateRadPerSec();
+            double yawError_rad_s = angularCmd_rad_s - yawMeasured_rad_s;
+
+            yawIntegral += yawError_rad_s * CONTROL_DT_S;
+            yawIntegral = constrain(yawIntegral, -YAW_INTEGRAL_LIMIT, YAW_INTEGRAL_LIMIT);
+
+            yawCorrection_mm_s = kp_yaw * yawError_rad_s + ki_yaw * yawIntegral;
+            yawCorrection_mm_s = constrain(yawCorrection_mm_s, -YAW_CORRECTION_LIMIT_MM_S, YAW_CORRECTION_LIMIT_MM_S);
+        } else {
+            yawIntegral = 0.0;
+        }
+
+        double leftTarget_mm_s  = linearCmd_mm_s - angularCmd_rad_s * halfTrack_mm - yawCorrection_mm_s / 2.0;
+        double rightTarget_mm_s = linearCmd_mm_s + angularCmd_rad_s * halfTrack_mm + yawCorrection_mm_s / 2.0;
+
+        leftTarget_mm_s  = constrain(leftTarget_mm_s,  -MAX_WHEEL_MM_S, MAX_WHEEL_MM_S);
+        rightTarget_mm_s = constrain(rightTarget_mm_s, -MAX_WHEEL_MM_S, MAX_WHEEL_MM_S);
+
+        double leftCmdMmS  = LEFT_WHEEL_SIGN  * leftTarget_mm_s;
+        double rightCmdMmS = RIGHT_WHEEL_SIGN * rightTarget_mm_s;
+
+        // --------------------------------------------------------
+        // 3. Lazo interno por rueda: PID sobre ticks de encoder para
+        //    alcanzar la velocidad de rueda objetivo.
+        // --------------------------------------------------------
         setpointI = mmpsToTicksPerControlCycle(leftCmdMmS);
         setpointD = mmpsToTicksPerControlCycle(rightCmdMmS);
 
-        if (leftCmdMmS == 0) {
+        if (idle) {
             pidIzq.SetMode(MANUAL);
             outputI = 0;
         } else {
@@ -81,7 +135,7 @@ void updateControl() {
             pidIzq.Compute();
         }
 
-        if (rightCmdMmS == 0) {
+        if (idle) {
             pidDer.SetMode(MANUAL);
             outputD = 0;
         } else {
@@ -95,8 +149,10 @@ void updateControl() {
         int pwmI = ffI + (int)outputI;
         int pwmD = ffD + (int)outputD;
 
-        if (leftCmdMmS == 0) pwmI = 0;
-        if (rightCmdMmS == 0) pwmD = 0;
+        if (idle) {
+            pwmI = 0;
+            pwmD = 0;
+        }
 
         pwmI = constrain(pwmI, -MAX_PWM, MAX_PWM);
         pwmD = constrain(pwmD, -MAX_PWM, MAX_PWM);
@@ -106,121 +162,20 @@ void updateControl() {
 
         static unsigned long lastDebug = 0;
         if (millis() - lastDebug > 500) {
-            Serial.print("CmdL_mm/s:");
-            Serial.print(g_Left_MmPerSec);
+            DEBUG_PRINT("v_mm/s:"); DEBUG_PRINT(g_Linear_MmPerSec);
+            DEBUG_PRINT(" w_mrad/s:"); DEBUG_PRINT(g_Angular_MradPerSec);
+            DEBUG_PRINT(" yawMeas_rad/s:"); DEBUG_PRINT(getYawRateRadPerSec());
+            DEBUG_PRINT(" yawCorr_mm/s:"); DEBUG_PRINT(yawCorrection_mm_s);
 
-            Serial.print(" CmdR_mm/s:");
-            Serial.print(g_Right_MmPerSec);
+            DEBUG_PRINT(" | SetL_ticks:"); DEBUG_PRINT(setpointI);
+            DEBUG_PRINT(" ActL_ticks:"); DEBUG_PRINT(inputI);
+            DEBUG_PRINT(" PWM_L:"); DEBUG_PRINT(pwmI);
 
-            Serial.print(" SetL_ticks:");
-            Serial.print(setpointI);
-
-            Serial.print(" ActL_ticks:");
-            Serial.print(inputI);
-
-            Serial.print(" FF_L:");
-            Serial.print(ffI);
-
-            Serial.print(" PID_L:");
-            Serial.print(outputI);
-
-            Serial.print(" PWM_L:");
-            Serial.print(pwmI);
-
-            Serial.print(" | SetR_ticks:");
-            Serial.print(setpointD);
-
-            Serial.print(" ActR_ticks:");
-            Serial.print(inputD);
-
-            Serial.print(" FF_R:");
-            Serial.print(ffD);
-
-            Serial.print(" PID_R:");
-            Serial.print(outputD);
-
-            Serial.print(" PWM_R:");
-            Serial.println(pwmD);
+            DEBUG_PRINT(" | SetR_ticks:"); DEBUG_PRINT(setpointD);
+            DEBUG_PRINT(" ActR_ticks:"); DEBUG_PRINT(inputD);
+            DEBUG_PRINT(" PWM_R:"); DEBUG_PRINTLN(pwmD);
 
             lastDebug = millis();
         }
     }
 }
-/*
-void updateControl() {
-    if (millis() - lastPIDTime >= 20) {
-        long currPosI = encIzq.read();
-        long currPosD = encDer.read();
-
-        inputI = (double)(currPosI - oldPosI);
-        inputD = (double)(currPosD - oldPosD);
-        
-        oldPosI = currPosI;
-        oldPosD = currPosD;
-        lastPIDTime = millis();
-
-        // Mezcla cinemática diferencial simple
-        #ifdef CONTROL_SOFTWARE
-            // Entrada desde software: g_Input_X = velocidad lineal, g_Input_Y = velocidad angular
-            double linearCmd = g_Input_X * 3.0;
-            double angularCmd = g_Input_Y * 1.0;
-
-
-            // w = (1/r) * (v +/- (w*L)/2)
-            //setpointI = (1/WHEEL_RADIUS) * (linearCmd + (angularCmd * WHEEL_CENTER_DISTANCE) * 0.5);
-            //setpointD = (1/WHEEL_RADIUS) * (linearCmd - (angularCmd * WHEEL_CENTER_DISTANCE) * 0.5);
-            setpointI = g_Input_X * 2;
-            setpointD = g_Input_Y * 3;
-        #else
-
-            // Entrada tipo joystick:
-            // g_Input_Y = avance / retroceso
-            // g_Input_X = giro izquierda / derecha
-
-            const double LINEAR_GAIN  = 3.0;
-            const double TURN_GAIN    = 3.0;
-            const double JOYSTICK_DEADZONE = 5.0;
-
-            double linearCmd = g_Input_Y;
-            double turnCmd   = g_Input_X;
-
-            if (abs(linearCmd) < JOYSTICK_DEADZONE) linearCmd = 0;
-            if (abs(turnCmd)   < JOYSTICK_DEADZONE) turnCmd   = 0;
-
-            double linearSpeed = linearCmd * LINEAR_GAIN;
-            double turnSpeed   = turnCmd   * TURN_GAIN;
-
-            setpointI = linearSpeed + turnSpeed;
-            setpointD = linearSpeed - turnSpeed;
-
-        #endif
-        if (setpointI == 0){
-            pidIzq.SetMode(MANUAL);
-            outputI = 0;
-        } else {
-            pidIzq.SetMode(AUTOMATIC);
-            pidIzq.Compute();
-        }
-        
-        if (setpointD == 0){
-            pidDer.SetMode(MANUAL);
-            outputD = 0;
-        } else {
-            pidDer.SetMode(AUTOMATIC);
-            pidDer.Compute();
-        }
-        
-        driveMotor((int)outputI, MOT_IN1_PIN, MOT_IN2_PIN);
-        driveMotor((int)outputD, MOT_IN3_PIN, MOT_IN4_PIN);
-
-        // DEBUG 
-        DEBUG_PRINT("TgtL:"); DEBUG_PRINT(setpointI);
-        DEBUG_PRINT(" ActL:"); DEBUG_PRINT(inputI);
-        DEBUG_PRINT(" OutL:"); DEBUG_PRINT(outputI);
-
-        DEBUG_PRINT(" | TgtR:"); DEBUG_PRINT(setpointD);
-        DEBUG_PRINT(" ActR:"); DEBUG_PRINT(inputD);
-        DEBUG_PRINTLN(" OutR:"); DEBUG_PRINTLN(outputD);
-    }
-}
-    */

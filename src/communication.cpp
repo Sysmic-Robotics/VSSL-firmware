@@ -1,4 +1,5 @@
 #include "communication.h"
+#include "debug.h"
 #include <string.h>
 #include <esp_wifi.h>
 
@@ -6,9 +7,12 @@
 // ==========================================
 //       VARIABLES GLOBALES DE COMANDO
 // ==========================================
+// Consignas del robot completo: velocidad lineal (mm/s) y angular (mrad/s).
+// La cinemática diferencial (reparto entre rueda izquierda/derecha) y la
+// corrección por giroscopio se resuelven en control.cpp.
 
-volatile int16_t g_Left_MmPerSec = 0;
-volatile int16_t g_Right_MmPerSec = 0;
+volatile int16_t g_Linear_MmPerSec = 0;
+volatile int16_t g_Angular_MradPerSec = 0;
 
 // Estado de comunicación
 static unsigned long lastCommandTime = 0;
@@ -19,9 +23,9 @@ static bool communicationConnected = false;
 //       FUNCIONES AUXILIARES
 // ==========================================
 
-void clearWheelCommands() {
-    g_Left_MmPerSec = 0;
-    g_Right_MmPerSec = 0;
+void clearVelocityCommands() {
+    g_Linear_MmPerSec = 0;
+    g_Angular_MradPerSec = 0;
 }
 
 static void markCommandReceived() {
@@ -29,10 +33,10 @@ static void markCommandReceived() {
     communicationConnected = true;
 }
 
-static int16_t clampWheelCommand(int16_t value) {
-    if (value > MAX_WHEEL_TICKS_PER_SEC) return MAX_WHEEL_TICKS_PER_SEC;
-    if (value < -MAX_WHEEL_TICKS_PER_SEC) return -MAX_WHEEL_TICKS_PER_SEC;
-    return value;
+static int16_t clampInt16(int32_t value, int32_t limit) {
+    if (value > limit) return (int16_t)limit;
+    if (value < -limit) return (int16_t)-limit;
+    return (int16_t)value;
 }
 
 // ==========================================
@@ -45,58 +49,52 @@ static int16_t clampWheelCommand(int16_t value) {
 #include <WiFi.h>
 
 #define COMM_MAGIC 0xA5
-#define COMM_VERSION 1
+#define COMM_VERSION 2
 #define NUM_ROBOTS 5
 
+// Consigna de velocidad del robot completo, tal como la entrega el software
+// de visión: velocidad lineal (mm/s) y angular (mrad/s). La estación base
+// solo retransmite estos valores, no le interesa cómo se generan.
 typedef struct __attribute__((packed)) {
-    int16_t left_mm_s;
-    int16_t right_mm_s;
-} RobotWheelCommand;
+    int16_t linear_mm_s;
+    int16_t angular_mrad_s;
+} RobotVelocityCommand;
 
 typedef struct __attribute__((packed)) {
     uint8_t magic;
     uint8_t version;
     uint16_t seq;
-    RobotWheelCommand robots[NUM_ROBOTS];
+    RobotVelocityCommand robots[NUM_ROBOTS];
 } CommandPacket;
 
 void OnDataRecv(const uint8_t * mac, const uint8_t *data, int len) {
-    Serial.print("RX ESP-NOW len=");
-    Serial.println(len);
-
     if (len != sizeof(CommandPacket)) {
-        Serial.println("Len incorrecto");
+        DEBUG_PRINTLN("Len incorrecto");
         return;
     }
 
     CommandPacket packet;
     memcpy(&packet, data, sizeof(CommandPacket));
 
-    Serial.print("Magic=");
-    Serial.println(packet.magic, HEX);
-
-    Serial.print("Version=");
-    Serial.println(packet.version);
-
     if (packet.magic != COMM_MAGIC) {
-        Serial.println("Magic incorrecto");
+        DEBUG_PRINTLN("Magic incorrecto");
         return;
     }
 
     if (packet.version != COMM_VERSION) {
-        Serial.println("Version incorrecta");
+        DEBUG_PRINTLN("Version incorrecta");
         return;
     }
 
     int idx = MI_ROBOT_ID - 1;
 
-    g_Left_MmPerSec = packet.robots[idx].left_mm_s;
-    g_Right_MmPerSec = packet.robots[idx].right_mm_s;
+    g_Linear_MmPerSec = clampInt16(packet.robots[idx].linear_mm_s, MAX_LINEAR_MM_S);
+    g_Angular_MradPerSec = clampInt16(packet.robots[idx].angular_mrad_s, MAX_ANGULAR_MRAD_S);
 
-    Serial.print("Cmd recibido L=");
-    Serial.print(g_Left_MmPerSec);
-    Serial.print(" R=");
-    Serial.println(g_Right_MmPerSec);
+    DEBUG_PRINT("Cmd recibido v=");
+    DEBUG_PRINT(g_Linear_MmPerSec);
+    DEBUG_PRINT(" w=");
+    DEBUG_PRINTLN(g_Angular_MradPerSec);
 
     markCommandReceived();
 }
@@ -138,7 +136,7 @@ struct {
 // ==========================================
 
 void initCommunication() {
-    clearWheelCommands();
+    clearVelocityCommands();
     communicationConnected = false;
     lastCommandTime = 0;
 
@@ -180,7 +178,7 @@ void updateCommunication() {
     if (communicationConnected &&
         (millis() - lastCommandTime > COMM_TIMEOUT_MS)) {
 
-        clearWheelCommands();
+        clearVelocityCommands();
         communicationConnected = false;
     }
 
@@ -190,36 +188,32 @@ void updateCommunication() {
 
     if (RemoteXY.connect_flag) {
 
+        // Mando_Y = avance/retroceso -> velocidad lineal
+        // Mando_X = giro izquierda/derecha -> velocidad angular
         int16_t linear = map(
             RemoteXY.Mando_Y,
             -100, 100,
-            -JOYSTICK_MAX_TICKS_PER_SEC,
-            JOYSTICK_MAX_TICKS_PER_SEC
+            -JOYSTICK_MAX_LINEAR_MM_S,
+            JOYSTICK_MAX_LINEAR_MM_S
         );
 
-        int16_t turn = map(
+        int16_t angular = map(
             RemoteXY.Mando_X,
             -100, 100,
-            -JOYSTICK_MAX_TICKS_PER_SEC,
-            JOYSTICK_MAX_TICKS_PER_SEC
+            -JOYSTICK_MAX_ANGULAR_MRAD_S,
+            JOYSTICK_MAX_ANGULAR_MRAD_S
         );
 
         if (abs(RemoteXY.Mando_Y) < JOYSTICK_DEADZONE) linear = 0;
-        if (abs(RemoteXY.Mando_X) < JOYSTICK_DEADZONE) turn = 0;
+        if (abs(RemoteXY.Mando_X) < JOYSTICK_DEADZONE) angular = 0;
 
-        int32_t left = linear + turn;
-        int32_t right = linear - turn;
-
-        left = constrain(left, -MAX_WHEEL_TICKS_PER_SEC, MAX_WHEEL_TICKS_PER_SEC);
-        right = constrain(right, -MAX_WHEEL_TICKS_PER_SEC, MAX_WHEEL_TICKS_PER_SEC);
-
-        g_Left_MmPerSec = (int16_t)left;
-        g_Right_MmPerSec = (int16_t)right;
+        g_Linear_MmPerSec = clampInt16(linear, MAX_LINEAR_MM_S);
+        g_Angular_MradPerSec = clampInt16(angular, MAX_ANGULAR_MRAD_S);
 
         markCommandReceived();
 
     } else {
-        clearWheelCommands();
+        clearVelocityCommands();
         communicationConnected = false;
     }
 

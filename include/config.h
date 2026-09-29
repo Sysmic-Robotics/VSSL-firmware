@@ -7,10 +7,7 @@
 //        CONFIGURACIÓN DE MODO
 // ==========================================
 // Descomenta para usar ESP-NOW (WIFI), comenta para RemoteXY (Bluetooth)
-// #define MODO_BASESTATION 
-
-// Comentar para apagar el control por software (Controlar mediante mando externo)
-//#define CONTROL_SOFTWARE //lo voy a ocupar pa controlar mediante mpu 
+// #define MODO_BASESTATION
 
 // ID de este robot (1 al 5)
 #define MI_ROBOT_ID 2
@@ -47,17 +44,17 @@ const int      MAX_PWM  = 1023;
 // ==========================================
 
 // Diámetro real de la rueda
-#define WHEEL_DIAMETER_M 0.034 
+#define WHEEL_DIAMETER_M 0.034
 
 // Ticks de encoder por UNA vuelta completa de la rueda.
 // Este valor hay que medirlo experimentalmente.
 #define ENCODER_TICKS_PER_WHEEL_REV 575
 
-// Geometria robotica para control diferencial
-// r: radio de la rueda
-// L: distancia de la rueda al centro del robot
-//const double WHEEL_RADIUS = 1.7; // 3.4 // 2.0
-//const double WHEEL_CENTER_DISTANCE = 3.7;  // 7.4//2
+// Geometría robótica para control diferencial.
+// Distancia entre el centro de las dos ruedas (ancho de vía), en mm.
+// IMPORTANTE: medir experimentalmente en el robot real, es crítico para
+// que la velocidad angular comandada se traduzca en el giro real del robot.
+#define WHEEL_TRACK_MM 75.0
 
 // PID cada 20 ms
 #define CONTROL_INTERVAL_MS 20
@@ -66,34 +63,48 @@ const int      MAX_PWM  = 1023;
 // Tiempo máximo sin recibir comandos
 #define COMM_TIMEOUT_MS 200
 
-// Límite de seguridad para comandos recibidos
-#define MAX_WHEEL_TICKS_PER_SEC 8000
+// ==========================================
+//        LÍMITES DE LAS CONSIGNAS (v, w)
+// ==========================================
+// Velocidad lineal máxima aceptada, en mm/s.
+#define MAX_LINEAR_MM_S 1500
+// Velocidad angular máxima aceptada, en mrad/s (1000 mrad/s = 1 rad/s).
+#define MAX_ANGULAR_MRAD_S 12000
 
-// Para pruebas con RemoteXY
-#define JOYSTICK_MAX_TICKS_PER_SEC 4000
+// Límite de seguridad para la velocidad de rueda resultante (cinemática + corrección)
+#define MAX_WHEEL_MM_S 2000
+
+// Para pruebas manuales con RemoteXY (joystick -> v, w)
+#define JOYSTICK_MAX_LINEAR_MM_S 800
+#define JOYSTICK_MAX_ANGULAR_MRAD_S 6000
 #define JOYSTICK_DEADZONE 5
 
 // Signo de ruedas.
-// Si al mandar left=1000/right=1000 una rueda gira al revés,
+// Si al mandar velocidad positiva una rueda gira al revés,
 // cambia el signo correspondiente a -1.
 #define LEFT_WHEEL_SIGN  1
 #define RIGHT_WHEEL_SIGN 1
 #define LEFT_ENCODER_SIGN  -1
 #define RIGHT_ENCODER_SIGN -1
 
-// PID Gains
+// Signo del eje Z del giroscopio del MPU6050.
+// Si al girar el robot en sentido antihorario (w > 0) el gyro mide negativo,
+// cambia este signo a -1 para que coincida con la convención de (v, w).
+#define GYRO_Z_SIGN 1
+
+// PID Gains (control de velocidad por rueda, con encoder)
 extern double kp, ki, kd;
 
-// Variables de consigna globales (disponibles para todo el proyecto)
-//extern float g_Input_X;
-//extern float g_Input_Y;
+// Ganancias del corrector de guiñada (PI sobre el error de velocidad angular
+// medida por el giroscopio vs. la comandada). Corrige asimetrías/deslizamiento
+// que el encoder por sí solo no puede detectar.
+extern double kp_yaw, ki_yaw;
+// Máxima corrección diferencial que puede aportar el lazo de guiñada, en mm/s.
+#define YAW_CORRECTION_LIMIT_MM_S 200
 
-// Nuevas consignas globales: velocidades de rueda en mm/s
-extern volatile int16_t g_Left_MmPerSec;
-extern volatile int16_t g_Right_MmPerSec;
-
-// Variables del mpu
-extern float ax, ay, gy; //valores de aceleración en X e Y
-
+// Consignas globales recibidas desde la estación base / software de visión:
+// velocidad lineal (mm/s) y velocidad angular (mrad/s) del robot completo.
+extern volatile int16_t g_Linear_MmPerSec;
+extern volatile int16_t g_Angular_MradPerSec;
 
 #endif
