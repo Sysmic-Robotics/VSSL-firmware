@@ -52,10 +52,6 @@ const int      MAX_PWM  = 1023;
 #define ENCODER_TICKS_PER_WHEEL_REV 575
 
 // Geometria robotica para control diferencial
-// r: radio de la rueda
-// L: distancia de la rueda al centro del robot
-//const double WHEEL_RADIUS = 1.7; // 3.4 // 2.0
-//const double WHEEL_CENTER_DISTANCE = 3.7;  // 7.4//2
 #define WHEEL_CENTER_DISTANCE_MM 77
 
 // PID cada 20 ms
@@ -68,18 +64,13 @@ const int      MAX_PWM  = 1023;
 // Límite de seguridad para comandos recibidos 
 #define MAX_WHEEL_TICKS_PER_SEC 8000
 
-// Para pruebas con RemoteXY
-#define JOYSTICK_MAX_TICKS_PER_SEC 1000
-#define JOYSTICK_DEADZONE 5
-
 // Signo de ruedas.
-// Si al mandar left=1000/right=1000 una rueda gira al revés,
 // cambia el signo correspondiente a -1.
 // Juega con estos dos valores, prueba -1 en uno de los dos:
 #define LEFT_WHEEL_SIGN   1
-#define RIGHT_WHEEL_SIGN 1
-#define LEFT_ENCODER_SIGN  -1
-#define RIGHT_ENCODER_SIGN  -1
+#define RIGHT_WHEEL_SIGN -1
+#define LEFT_ENCODER_SIGN  1            //ver cual esta al reves y cambiar el signo correspondiente a -1
+#define RIGHT_ENCODER_SIGN  1
 
 // PID Gains
 extern double kp, ki, kd;

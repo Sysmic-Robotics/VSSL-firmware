@@ -19,6 +19,7 @@ void setup() {
   Serial.begin(115200);
   delay(2000);
 
+  initMPU();
   initCommunication();
   initControl();
 }
@@ -32,11 +33,11 @@ void loop() {
     clearWheelCommands();
     stopMotors();
   }
+  // 3. Sensores
+  updateMPU();
 
-  // 3. Control de motores
+  // 4. Control de motores
   updateControl();
 
-  // 4. Sensores opcionales
-  updateMPU();
 
 }

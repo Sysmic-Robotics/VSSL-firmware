@@ -2,6 +2,9 @@
 #include "config.h"
 
 void initMotors() {
+    analogWriteFrequency(PWM_FREQ);
+    analogWriteResolution(PWM_RES);
+    
     pinMode(MOT_IN1_PIN, OUTPUT);
     pinMode(MOT_IN2_PIN, OUTPUT);
     pinMode(MOT_IN3_PIN, OUTPUT);

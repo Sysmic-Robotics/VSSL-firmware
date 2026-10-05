@@ -82,7 +82,7 @@ void updateMPU() {
         Wire.read(); Wire.read(); // Ignorar Y del giroscopio
         tempg = Wire.read() << 8 | Wire.read(); // Giroscopio
 
-        ax = (tempx / 16384.0) * 9.81 - offsetx; // Convertir a m/s² y aplicar offset
+        ax = ((tempx / 16384.0) * 9.81 - offsetx); // Convertir a m/s² y aplicar offset
         ay = (tempy / 16384.0) * 9.81 - offsety; // Convertir a m/s² y aplicar offset
         gy = tempg / 131.0 - offsetg; // Convertir a grados/s (asumiendo sensibilidad de ±250°/s)
 
