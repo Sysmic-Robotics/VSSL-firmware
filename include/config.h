@@ -10,7 +10,7 @@
 #define MODO_BASESTATION
 
 // ID de este robot (1 al 5)
-#define MI_ROBOT_ID 2
+#define MI_ROBOT_ID 1
 
 // ==========================================
 //               PINES HARDWARE

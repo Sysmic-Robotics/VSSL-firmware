@@ -4,7 +4,7 @@
 #include <Arduino.h>
 
 // comentar para apagar los mensajes de debug
-#define MODO_DEBUG 1
+//#define MODO_DEBUG 1
 
 #ifdef MODO_DEBUG
     #define DEBUG_INIT(speed) Serial.begin(speed)
