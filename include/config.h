@@ -54,13 +54,18 @@ const int      MAX_PWM  = 1023;
 #define WHEEL_DIAMETER_M 0.034
 
 // Ticks de encoder por UNA vuelta completa de la rueda.
-// Este valor hay que medirlo experimentalmente.
+// Este valor hay que medirlo experimentalmente, girando la RUEDA (no el eje
+// del motor). Los engranajes actuales son 16:16 (relación 1:1), así que no
+// lo cambian; si algún día se usa otra relación, hay que volver a medirlo.
 #define ENCODER_TICKS_PER_WHEEL_REV 575
 
 // Geometría robótica para control diferencial.
 // Distancia entre el centro de las dos ruedas (ancho de vía), en mm.
 // IMPORTANTE: medir experimentalmente en el robot real, es crítico para
 // que la velocidad angular comandada se traduzca en el giro real del robot.
+// Con los engranajes las ruedas cambiaron de posición respecto al diseño
+// anterior: este valor hay que volver a medirlo (centro a centro de las
+// ruedas, no de los motores).
 #define WHEEL_TRACK_MM 75.0
 
 // PID cada 20 ms
@@ -159,24 +164,57 @@ const int      MAX_PWM  = 1023;
 #define JOYSTICK_HEADING_ARM_LINEAR_MM_S 40.0f
 #define JOYSTICK_HEADING_ARM_ANGULAR_MRAD_S 150.0f
 
-// Signo de ruedas.
-// Si al mandar velocidad positiva una rueda gira al revés,
-// cambia el signo correspondiente a -1.
+// ------------------------------------------------------------
+// Sentido rueda <-> motor
+// ------------------------------------------------------------
+// *_WHEEL_SIGN responde a una sola pregunta: con PWM positivo, ¿la rueda
+// avanza (+1) o retrocede (-1)? Sale de dos causas independientes:
 //
-// Los dos motores van montados en espejo. Ese espejo hay que compensarlo en
-// UN solo sitio: o en los cables (M1/M2 cruzados en un motor) o aquí con un
-// -1. Con los cables actuales ya compensan, así que ambos van en 1.
-//   Síntoma de compensar dos veces (o ninguna): al pedir AVANCE el robot
-//   gira sobre su eje, y al pedir GIRO se traslada.
-//   Si avanza cuando debería retroceder: invierte AMBOS signos (solo
-//   define cuál extremo es el "frente").
-#define LEFT_WHEEL_SIGN  1
-#define RIGHT_WHEEL_SIGN -1 
+//  1) Montaje del motor (*_MOTOR_MOUNT_SIGN): cómo está orientado y cableado
+//     cada motor respecto a su rueda, sin contar engranajes. Se dejan los
+//     valores que ya estaban validados en el robot SIN engranajes (motores
+//     en espejo: izquierdo +1, derecho -1). Si el cambio mecánico también
+//     cambió la orientación de algún motor, es este signo el que se ajusta.
+//
+//  2) Engranajes entre el eje del motor y la rueda (*_GEAR_MESHES): cada
+//     par de ruedas dentadas en contacto INVIERTE el sentido de giro. Con 1
+//     engrane se invierte; con 2 se compensan; con 0 (rueda directa al eje)
+//     no cambia nada.
+//
+// Hoy: un par de engranajes de 16 dientes (módulo 0.875, diámetro primitivo
+// 14 mm) entre cada motor y su rueda. Como es 16:16 la relación es 1:1: el
+// sentido se invierte pero la velocidad no cambia.
+//
+// OJO: el encoder va montado en el eje del MOTOR, antes del engrane, así que
+// los engranajes no afectan a *_ENCODER_SIGN (ver más abajo).
+//
+// Para diagnosticar con el robot en el suelo (stick adelante / pivote):
+//   - Avanza al revés (ambas ruedas atrás): invierte los dos MOUNT.
+//   - Al pedir AVANCE gira sobre su eje, o al pedir GIRO se traslada: UNA
+//     de las dos ruedas está mal; si solo una lleva engranaje, pon
+//     GEAR_MESHES en 0 en el lado que NO lo lleva.
+#define LEFT_MOTOR_MOUNT_SIGN   1
+#define RIGHT_MOTOR_MOUNT_SIGN -1
+
+#define LEFT_GEAR_MESHES  1
+#define RIGHT_GEAR_MESHES 1
+
+// -1 si el número de engranes es impar, +1 si es par.
+#define GEAR_SIGN(meshes) (((meshes) % 2) ? -1 : 1)
+
+#define LEFT_WHEEL_SIGN  (LEFT_MOTOR_MOUNT_SIGN  * GEAR_SIGN(LEFT_GEAR_MESHES))
+#define RIGHT_WHEEL_SIGN (RIGHT_MOTOR_MOUNT_SIGN * GEAR_SIGN(RIGHT_GEAR_MESHES))
+
+// Un MOUNT distinto de +-1 multiplicaría la velocidad en silencio.
+static_assert(LEFT_MOTOR_MOUNT_SIGN  == 1 || LEFT_MOTOR_MOUNT_SIGN  == -1, "LEFT_MOTOR_MOUNT_SIGN debe ser +1 o -1");
+static_assert(RIGHT_MOTOR_MOUNT_SIGN == 1 || RIGHT_MOTOR_MOUNT_SIGN == -1, "RIGHT_MOTOR_MOUNT_SIGN debe ser +1 o -1");
+static_assert(LEFT_GEAR_MESHES >= 0 && RIGHT_GEAR_MESHES >= 0, "GEAR_MESHES no puede ser negativo");
 
 // Signo de encoders. Se elige para que un PWM positivo produzca una lectura
 // positiva (realimentación negativa). Es independiente de *_WHEEL_SIGN:
 // cambiar el signo de rueda invierte a la vez la consigna y el PWM, así que
-// el lazo del PID sigue siendo consistente.
+// el lazo del PID sigue siendo consistente. Tampoco depende de los
+// engranajes: el encoder lee el eje del motor, antes del engrane.
 // OJO: el encoder izquierdo tiene A y B cruzados respecto al esquemático
 // (PIN_ENC_IZQ_A=GPIO1=B_L y PIN_ENC_IZQ_B=GPIO0=A_L), lo que ya invierte
 // su conteo por hardware; por eso su signo efectivo no coincide con el
