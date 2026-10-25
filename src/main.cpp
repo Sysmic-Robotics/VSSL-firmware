@@ -14,13 +14,15 @@
 #include "mpu.h"
 
 void setup() {
+  initMotors();
+  
   Serial.begin(115200);
   delay(2000);
 
   Serial.println();
   Serial.println("BOOT ROBOT VSSS");
 
-  initMotors();
+  
   Serial.println("Motores inicializados");
     
 
