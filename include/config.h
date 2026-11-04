@@ -79,11 +79,11 @@ const int      MAX_PWM  = 1023;
 //        LÍMITES DE LAS CONSIGNAS (v, w)
 // ==========================================
 // Topes de seguridad de lo que se acepta por ESP-NOW. Se alinean con los de
-// base_station_lineal_angulo.ino (MAX_V_MM_S 1500, MAX_W_DEG_S 720) para no
+// las bases (MAX_V_MM_S 1500, MAX_W_DEG_S / MAX_ANGULAR_DEG_S 1000) para no
 // recortar en silencio un valor que la estación base considera válido:
-//   720 grados/s x 17.4533 = 12566 mrad/s
+//   1000 grados/s x 17.4533 = 17453 mrad/s
 #define MAX_LINEAR_MM_S 1500
-#define MAX_ANGULAR_MRAD_S 12600
+#define MAX_ANGULAR_MRAD_S 17500
 
 // Límite de seguridad para la velocidad de rueda resultante (cinemática +
 // corrección). Ajustado al techo físico medido (~464 mm/s por rueda): así

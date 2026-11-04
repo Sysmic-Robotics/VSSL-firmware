@@ -15,7 +15,7 @@ const unsigned long SEND_INTERVAL_MS = 50;
 // Límites de lo que se acepta por serie. Son los mismos que usa la base de
 // test (base_station_lineal_angulo.ino). El robot recorta además a ~722 °/s.
 #define MAX_LINEAR_MM_S 1500
-#define MAX_ANGULAR_DEG_S 720
+#define MAX_ANGULAR_DEG_S 1000
 
 // Broadcast ESP-NOW
 uint8_t broadcastAddress[] = {

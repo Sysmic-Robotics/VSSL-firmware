@@ -14,7 +14,7 @@
 
 // Nuevos límites de seguridad para V y W
 #define MAX_V_MM_S 1500
-#define MAX_W_DEG_S 720  // Límite de giro en grados/segundo
+#define MAX_W_DEG_S 1000  // Límite de giro en grados/segundo
 #define SEND_INTERVAL_MS 50
 
 uint8_t broadcastAddress[] = {
