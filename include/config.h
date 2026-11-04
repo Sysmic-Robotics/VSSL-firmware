@@ -51,7 +51,7 @@ const int      MAX_PWM  = 1023;
 // ==========================================
 
 // Diámetro real de la rueda
-#define WHEEL_DIAMETER_M 0.034
+#define WHEEL_DIAMETER_M 0.035
 
 // Ticks de encoder por UNA vuelta completa de la rueda.
 // Este valor hay que medirlo experimentalmente, girando la RUEDA (no el eje
@@ -66,7 +66,7 @@ const int      MAX_PWM  = 1023;
 // Con los engranajes las ruedas cambiaron de posición respecto al diseño
 // anterior: este valor hay que volver a medirlo (centro a centro de las
 // ruedas, no de los motores).
-#define WHEEL_TRACK_MM 75.0
+#define WHEEL_TRACK_MM 68.0
 
 // PID cada 20 ms
 #define CONTROL_INTERVAL_MS 20
@@ -89,7 +89,7 @@ const int      MAX_PWM  = 1023;
 // corrección). Ajustado al techo físico medido (~464 mm/s por rueda): así
 // una consigna imposible se recorta aquí en vez de saturar el PWM y dejar al
 // PID sin autoridad, cosa que antes con 2000 nunca llegaba a ocurrir.
-#define MAX_WHEEL_MM_S 450
+#define MAX_WHEEL_MM_S 700
 
 // ==========================================
 //   CONTROL MANUAL POR JOYSTICK (RemoteXY)
