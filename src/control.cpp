@@ -2,6 +2,43 @@
 #include "debug.h"
 #include "mpu.h"
 
+volatile long ticksIzq = 0;
+volatile long ticksDer = 0;
+
+void IRAM_ATTR isrIzqA() {
+    if (digitalRead(PIN_ENC_IZQ_A) == digitalRead(PIN_ENC_IZQ_B)) {
+        ticksIzq++;
+    } else {
+        ticksIzq--;
+    }
+}
+
+
+void IRAM_ATTR isrIzqB() {
+    if (digitalRead(PIN_ENC_IZQ_A) != digitalRead(PIN_ENC_IZQ_B)) {
+        ticksIzq++;
+    } else {
+        ticksIzq--;
+    }
+}
+
+void IRAM_ATTR isrDerA() {
+    if (digitalRead(PIN_ENC_DER_A) == digitalRead(PIN_ENC_DER_B)) {
+        ticksDer++;
+    } else {
+        ticksDer--;
+    }
+}
+
+void IRAM_ATTR isrDerB() {
+    if (digitalRead(PIN_ENC_DER_A) != digitalRead(PIN_ENC_DER_B)) {
+        ticksDer++;
+    } else {
+        ticksDer--;
+    }
+}
+
+
 Encoder encIzq(PIN_ENC_IZQ_A, PIN_ENC_IZQ_B);
 Encoder encDer(PIN_ENC_DER_A, PIN_ENC_DER_B);
 
@@ -11,12 +48,12 @@ double setpointD, inputD, outputD;
 // Ganancias del PID de velocidad por rueda. La salida está en unidades de
 // PWM, así que al pasar la escala real de 255 a 1023 (ver initMotors) hay
 // que multiplicarlas por 4 para conservar la misma respuesta del lazo.
-double kp=4.0, ki=0.40, kd=0.0;
+double kp=2.5, ki=0.2, kd=0.0;
 
 // Ganancias del corrector de guiñada (lazo exterior sobre el gyro).
 // El robot alcanza altas velocidades angulares, por lo que ki_yaw se mantiene
 // bajo para evitar oscilaciones; ajustar en cancha.
-double kp_yaw = 40.0, ki_yaw = 5.0;
+double kp_yaw = 30.0, ki_yaw = 2.0;
 
 PID pidIzq(&inputI, &outputI, &setpointI, kp, ki, kd, DIRECT);
 PID pidDer(&inputD, &outputD, &setpointD, kp, ki, kd, DIRECT);
@@ -77,6 +114,16 @@ int feedForwardPWM(double velocity_mm_s) {
 
 
 void initControl() {
+    pinMode(PIN_ENC_IZQ_A, INPUT_PULLUP);
+    pinMode(PIN_ENC_IZQ_B, INPUT_PULLUP);
+    pinMode(PIN_ENC_DER_A, INPUT_PULLUP);
+    pinMode(PIN_ENC_DER_B, INPUT_PULLUP);
+
+    attachInterrupt(digitalPinToInterrupt(PIN_ENC_IZQ_A), isrIzqA, CHANGE);
+    attachInterrupt(digitalPinToInterrupt(PIN_ENC_IZQ_B), isrIzqB, CHANGE);
+    attachInterrupt(digitalPinToInterrupt(PIN_ENC_DER_A), isrDerA, CHANGE);
+    attachInterrupt(digitalPinToInterrupt(PIN_ENC_DER_B), isrDerB, CHANGE);
+
     pidIzq.SetOutputLimits(-PID_CORRECTION_LIMIT, PID_CORRECTION_LIMIT);
     pidDer.SetOutputLimits(-PID_CORRECTION_LIMIT, PID_CORRECTION_LIMIT);
 
@@ -90,8 +137,8 @@ void initControl() {
 void updateControl() {
     if (millis() - lastPIDTime >= CONTROL_INTERVAL_MS) {
 
-        long currPosI = encIzq.read();
-        long currPosD = encDer.read();
+        long currPosI = ticksIzq;
+        long currPosD = ticksDer;
 
         inputI = LEFT_ENCODER_SIGN * (double)(currPosI - oldPosI);
         inputD = RIGHT_ENCODER_SIGN * (double)(currPosD - oldPosD);
