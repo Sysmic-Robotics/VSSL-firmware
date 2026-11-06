@@ -51,6 +51,11 @@ const int      MAX_PWM  = 1023;
 // Al cambiarlo hay que RECALIBRAR PWM_STATIC y PWM_PER_MM_S en control.cpp.
 #define MOTOR_SLOW_DECAY 1
 
+// Rueda quieta (PWM 0): 1 = FRENO (IN1 = IN2 = 1, el motor en corto), 0 = rueda libre (antes).
+// Con freno, al recibir (0, 0) el robot se detiene antes en vez de seguir rodando, y se resiste
+// más a que lo empujen (el arquero contra un delantero). Con la rueda quieta no consume.
+#define FRENO_EN_REPOSO 0
+
 // ==========================================
 //        PARÁMETROS FÍSICOS DEL ROBOT
 // ==========================================

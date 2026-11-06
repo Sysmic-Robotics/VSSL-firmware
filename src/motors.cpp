@@ -40,9 +40,15 @@ void driveMotor(int speed, uint8_t pinA, uint8_t pinB) {
     int pwm = abs(speed);
 
     if (speed == 0) {
+#if FRENO_EN_REPOSO
+        // Freno: las dos entradas en alto (OUT1 = OUT2 = L, motor en corto).
+        analogWrite(pinA, MAX_PWM);
+        analogWrite(pinB, MAX_PWM);
+#else
         // Rueda libre, igual en los dos modos.
         analogWrite(pinA, 0);
         analogWrite(pinB, 0);
+#endif
         return;
     }
 
@@ -68,8 +74,14 @@ void driveMotor(int speed, uint8_t pinA, uint8_t pinB) {
 }
 
 void stopMotors() {
+#if FRENO_EN_REPOSO
+    // También al perder la comunicación y al arrancar: frenado, no rueda libre.
+    driveMotor(0, MOT_IN1_PIN, MOT_IN2_PIN);
+    driveMotor(0, MOT_IN3_PIN, MOT_IN4_PIN);
+#else
     analogWrite(MOT_IN1_PIN, 0);
     analogWrite(MOT_IN2_PIN, 0);
     analogWrite(MOT_IN3_PIN, 0);
     analogWrite(MOT_IN4_PIN, 0);
+#endif
 }
