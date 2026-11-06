@@ -12,6 +12,11 @@
 // ID de este robot (1 al 5)
 #define MI_ROBOT_ID 1
 
+// Firmware de BANCO (src/prueba_ruedas.cpp): no escucha ESP-NOW y se maneja por el monitor
+// serie USB a 115200 (escribir 'h' para la ayuda). Sirve para medir sin cámara el arranque, la
+// pendiente PWM -> velocidad, el tope y la ganancia real del lazo de rueda. NUNCA en un partido.
+//#define MODO_PRUEBA_RUEDAS
+
 // ==========================================
 //               PINES HARDWARE
 // ==========================================

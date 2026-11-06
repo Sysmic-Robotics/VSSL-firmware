@@ -55,6 +55,8 @@ double kp=2.5, ki=0.2, kd=0.0;
 // bajo para evitar oscilaciones; ajustar en cancha.
 double kp_yaw = 30.0, ki_yaw = 2.0;
 
+TelemetriaControl g_telemetria = {};
+
 PID pidIzq(&inputI, &outputI, &setpointI, kp, ki, kd, DIRECT);
 PID pidDer(&inputD, &outputD, &setpointD, kp, ki, kd, DIRECT);
 
@@ -145,7 +147,9 @@ void updateControl() {
 
         oldPosI = currPosI;
         oldPosD = currPosD;
-        lastPIDTime = millis();
+        unsigned long ahoraCiclo = millis();
+        unsigned long dtCiclo_ms = ahoraCiclo - lastPIDTime;
+        lastPIDTime = ahoraCiclo;
 
         // --------------------------------------------------------
         // 1. Cinemática diferencial: (v, w) del robot -> velocidad
@@ -238,6 +242,22 @@ void updateControl() {
 
         driveMotor(pwmI, MOT_IN1_PIN, MOT_IN2_PIN);
         driveMotor(pwmD, MOT_IN3_PIN, MOT_IN4_PIN);
+
+        // Telemetría (solo anota lo ya calculado; no cambia el control).
+        double dtTele_s = (dtCiclo_ms > 0 ? dtCiclo_ms : CONTROL_INTERVAL_MS) / 1000.0;
+        g_telemetria.ciclos++;
+        g_telemetria.t_ms = ahoraCiclo;
+        g_telemetria.dt_ms = dtCiclo_ms;
+        g_telemetria.izq.consigna_mm_s = leftTarget_mm_s;
+        g_telemetria.izq.medida_mm_s = LEFT_WHEEL_SIGN * inputI * MM_POR_TICK / dtTele_s;
+        g_telemetria.izq.pwm = LEFT_WHEEL_SIGN * pwmI;
+        g_telemetria.izq.ticks = (long)inputI;
+        g_telemetria.der.consigna_mm_s = rightTarget_mm_s;
+        g_telemetria.der.medida_mm_s = RIGHT_WHEEL_SIGN * inputD * MM_POR_TICK / dtTele_s;
+        g_telemetria.der.pwm = RIGHT_WHEEL_SIGN * pwmD;
+        g_telemetria.der.ticks = (long)inputD;
+        g_telemetria.yaw_medido_rad_s = isMPUReady() ? getYawRateRadPerSec() : 0.0;
+        g_telemetria.yaw_correccion_mm_s = yawCorrection_mm_s;
 
         static unsigned long lastDebug = 0;
         if (millis() - lastDebug > 500) {

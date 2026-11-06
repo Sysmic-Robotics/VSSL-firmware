@@ -12,6 +12,29 @@
 #include "control.h"
 #include "debug.h"
 #include "mpu.h"
+#ifdef MODO_PRUEBA_RUEDAS
+#include "prueba_ruedas.h"
+#endif
+
+#ifdef MODO_PRUEBA_RUEDAS
+// Firmware de banco: sin ESP-NOW, se maneja por el monitor serie (ver prueba_ruedas.cpp).
+void setup() {
+  initMotors();
+  Serial.begin(115200);
+  delay(2000);
+  Serial.println();
+  Serial.println("BOOT ROBOT VSSS - MODO PRUEBA DE RUEDAS (no escucha la base)");
+  initControl();
+  Serial.println("Calibrando MPU6050 (robot quieto)...");
+  initMPU();
+  pruebaRuedasInicio();
+}
+
+void loop() {
+  pruebaRuedasLoop();
+}
+
+#else
 
 void setup() {
   initMotors();
@@ -62,3 +85,5 @@ void loop() {
   // 4. Control de motores (cinemática + PID por rueda + corrección por gyro)
   updateControl();
 }
+
+#endif
