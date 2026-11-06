@@ -236,7 +236,14 @@ static_assert(LEFT_GEAR_MESHES >= 0 && RIGHT_GEAR_MESHES >= 0, "GEAR_MESHES no p
 // cambia este signo a -1 para que coincida con la convención de (v, w).
 #define GYRO_Z_SIGN 1
 
-// PID Gains (control de velocidad por rueda, con encoder)
+// Lazo de velocidad de cada rueda (control.cpp):
+//   1 = V2 (5-nov-2026): PI en mm/s con integral de verdad y anti-windup, feedforward
+//       recalibrado con la fricción y patada de arranque. Es el arreglo del avance ~1.5 veces lo
+//       pedido y de la zona muerta (no arrancaba con menos de ~0.06 m/s ni ~1 rad/s).
+//   0 = el lazo de 8510c6d (feedforward + PID_v1 casi sin integral), para volver atrás rápido.
+#define CONTROL_RUEDA_V2 0
+
+// PID Gains (control de velocidad por rueda, con encoder; solo con CONTROL_RUEDA_V2 0)
 extern double kp, ki, kd;
 
 // Ganancias del corrector de guiñada (PI sobre el error de velocidad angular

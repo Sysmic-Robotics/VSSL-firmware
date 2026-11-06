@@ -39,8 +39,9 @@ void IRAM_ATTR isrDerB() {
 }
 
 
-Encoder encIzq(PIN_ENC_IZQ_A, PIN_ENC_IZQ_B);
-Encoder encDer(PIN_ENC_DER_A, PIN_ENC_DER_B);
+// Los objetos Encoder de la librería ya no se usan desde 8510c6d (los ticks salen de las ISR de
+// arriba). Se quitan: su constructor enganchaba sus propias interrupciones a los mismos pines
+// antes de setup(), y solo dejaba de contar porque attachInterrupt de initControl las reemplaza.
 
 double setpointI, inputI, outputI;
 double setpointD, inputD, outputD;
@@ -90,6 +91,99 @@ const int CMD_DEADBAND_MM_S = 20;
 // Límite del término integral del corrector de guiñada, en rad (error*dt acumulado).
 const double YAW_INTEGRAL_LIMIT = 5.0;
 static double yawIntegral = 0.0;
+
+#if CONTROL_RUEDA_V2
+// --- Lazo de rueda V2 (5-nov-2026) ---
+// Por qué: con el lazo de arriba la velocidad la ponía casi solo el feedforward, y su pendiente
+// (PWM_PER_MM_S 2.00) se calibró con ~464 mm/s a PWM 1023 (29-sep, decaimiento rápido, sin
+// engranajes). Con el decaimiento lento y los engranajes el tope en vacío es ~765 mm/s (commit
+// 0e828a9): el feedforward solo ya da ~1.5 veces lo pedido. El PID no lo corregía: kp 2.5 en PWM
+// por tick/ciclo son ~0.26 PWM por mm/s (ganancia de lazo ~0.2), y PID_v1 guarda ki*Ts =
+// 0.2*0.02 = 0.004 por ciclo (tiempo integral ~12 s). Y bajo ~0.06 m/s no arrancaba: PWM_STATIC
+// 90 (+2 por mm/s) no vence la fricción estática en el suelo (~200-260 de PWM según la cancha del
+// 5-nov) y CMD_DEADBAND_MM_S 20 apagaba todo lo menor.
+//
+// Ahora: PWM = FF + KP*e + I, con e en mm/s medido con el dt real, I con anti-windup y una patada
+// de arranque mientras la rueda está quieta. Los MEDIR salen del firmware de banco
+// (MODO_PRUEBA_RUEDAS): 'b' para la fricción andando, 'e' para el arranque y la pendiente, 'v'
+// para validar. Con el integrador, un error del feedforward ya no cambia la velocidad en régimen
+// (solo el transitorio).
+const double RUEDA_KP = 1.0;             // PWM por mm/s de error (lazo ~0.7 con ~0.7 mm/s por PWM)
+const double RUEDA_KI = 10.0;            // PWM por (mm/s * s): tiempo integral 0.1 s
+const double RUEDA_I_MAX = 300.0;        // tope del integrador, en PWM
+const int    RUEDA_PWM_CINETICO = 60;    // MEDIR ('b'): PWM con que la rueda deja de andar
+const double RUEDA_PWM_POR_MM_S = 1.20;  // MEDIR ('e'): (1023 - 60) / ~800 mm/s, el tope en la madera
+const int    RUEDA_PWM_ARRANQUE = 240;   // MEDIR ('e'): primer PWM que despega en el suelo + 10 %
+const int    RUEDA_CICLOS_PATADA = 3;    // ciclos de 20 ms, como mucho, con la patada
+const double RUEDA_V_MIN_MM_S = 8.0;     // bajo esto la rueda se apaga (antes 20)
+
+struct EstadoRueda {
+    double integral;
+    int ciclosPatada;
+    int signo;          // signo de la última consigna, para vaciar la integral al invertir
+    long ticksPrevio1;  // |ticks| de los dos ciclos anteriores
+    long ticksPrevio2;
+    long ticksRecientes; // |ticks| de los últimos 3 ciclos (60 ms)
+};
+static EstadoRueda ruedaIzq = {0.0, 0, 0, 0, 0, 0};
+static EstadoRueda ruedaDer = {0.0, 0, 0, 0, 0, 0};
+static unsigned long ultimoCiclo_us = 0;
+
+static void reiniciarRueda(EstadoRueda &r) {
+    r.integral = 0.0;
+    r.ciclosPatada = 0;
+    r.signo = 0;
+    r.ticksPrevio1 = 0;
+    r.ticksPrevio2 = 0;
+    r.ticksRecientes = 0;
+}
+
+// consigna y medida en mm/s con el signo del MOTOR (el del PWM); ticks del último ciclo.
+// dt_s = 0: solo recalcula el PWM con una consigna nueva (no integra ni cuenta ciclos).
+static int pwmRuedaV2(EstadoRueda &r, double consigna, double medida, long ticks, double dt_s) {
+    if (fabs(consigna) < RUEDA_V_MIN_MM_S) {
+        reiniciarRueda(r);
+        return 0;
+    }
+    int signo = (consigna > 0) ? 1 : -1;
+    if (signo != r.signo) {
+        // Arranque o cambio de sentido: la integral del otro sentido no sirve.
+        r.integral = 0.0;
+        r.ciclosPatada = 0;
+        r.signo = signo;
+    }
+
+    double error = consigna - medida;
+    double ff = signo * (RUEDA_PWM_CINETICO + RUEDA_PWM_POR_MM_S * fabs(consigna));
+    double u = ff + RUEDA_KP * error + r.integral;
+
+    // Anti-windup: no se integra si la salida ya está saturada hacia el lado del error.
+    bool saturada = fabs(u) >= MAX_PWM;
+    if (!(saturada && ((u > 0) == (error > 0)))) {
+        r.integral += RUEDA_KI * error * fmin(dt_s, 0.05);
+        r.integral = constrain(r.integral, -RUEDA_I_MAX, RUEDA_I_MAX);
+    }
+
+    // Patada de arranque: si la rueda casi no se movió en los últimos 3 ciclos (<= 1 tick en
+    // 60 ms, ~3 mm/s), se asegura al menos RUEDA_PWM_ARRANQUE durante unos pocos ciclos para
+    // vencer la fricción estática. Se rearma cuando la rueda vuelve a andar. Mirar 3 ciclos y no
+    // uno evita patadas repetidas cuando la rueda avanza despacio (0-1 tick por ciclo).
+    if (dt_s > 0.0) {
+        long t = labs(ticks);
+        r.ticksRecientes = t + r.ticksPrevio1 + r.ticksPrevio2;
+        r.ticksPrevio2 = r.ticksPrevio1;
+        r.ticksPrevio1 = t;
+    }
+    if (r.ticksRecientes > 1) {
+        r.ciclosPatada = 0;
+    } else if (r.ciclosPatada < RUEDA_CICLOS_PATADA) {
+        if (dt_s > 0.0) r.ciclosPatada++;
+        if (fabs(u) < RUEDA_PWM_ARRANQUE) u = signo * RUEDA_PWM_ARRANQUE;
+    }
+
+    return (int)constrain(u, -(double)MAX_PWM, (double)MAX_PWM);
+}
+#endif
 
 double mmpsToTicksPerControlCycle(double velocity_mm_s) {
     double velocity_m_s = velocity_mm_s / 1000.0;
@@ -203,6 +297,30 @@ void updateControl() {
         double leftCmdMmS  = LEFT_WHEEL_SIGN  * leftTarget_mm_s;
         double rightCmdMmS = RIGHT_WHEEL_SIGN * rightTarget_mm_s;
 
+#if CONTROL_RUEDA_V2
+        // --------------------------------------------------------
+        // 3. Lazo interno por rueda (V2): PI en mm/s con el dt real,
+        //    feedforward con fricción y patada de arranque.
+        // --------------------------------------------------------
+        unsigned long ahora_us = micros();
+        double dt_s = (ahora_us - ultimoCiclo_us) / 1e6;
+        ultimoCiclo_us = ahora_us;
+        if (dt_s <= 0.0 || dt_s > 0.1) dt_s = CONTROL_DT_S;   // primer ciclo o pausa larga
+
+        // Con el signo del motor (el del PWM), igual que inputI/inputD.
+        double medidaI_mm_s = inputI * MM_POR_TICK / dt_s;
+        double medidaD_mm_s = inputD * MM_POR_TICK / dt_s;
+
+        int pwmI = 0;
+        int pwmD = 0;
+        if (idle) {
+            reiniciarRueda(ruedaIzq);
+            reiniciarRueda(ruedaDer);
+        } else {
+            pwmI = pwmRuedaV2(ruedaIzq, leftCmdMmS, medidaI_mm_s, (long)inputI, dt_s);
+            pwmD = pwmRuedaV2(ruedaDer, rightCmdMmS, medidaD_mm_s, (long)inputD, dt_s);
+        }
+#else
         // --------------------------------------------------------
         // 3. Lazo interno por rueda: PID sobre ticks de encoder para
         //    alcanzar la velocidad de rueda objetivo.
@@ -236,6 +354,7 @@ void updateControl() {
             pwmI = 0;
             pwmD = 0;
         }
+#endif
 
         pwmI = constrain(pwmI, -MAX_PWM, MAX_PWM);
         pwmD = constrain(pwmD, -MAX_PWM, MAX_PWM);
